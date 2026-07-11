@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "materials": {
+    "hay": { "hp": 1, "display_name": "Hay", "tier": 0 },
+    "brick": { "hp": 3, "display_name": "Brick", "tier": 1 },
+    "metal": { "hp": 5, "display_name": "Metal", "tier": 2 },
+    "obsidian": { "hp": 8, "display_name": "Obsidian", "tier": 3 }
+  }
+}

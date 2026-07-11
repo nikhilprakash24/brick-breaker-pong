@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brick Breaker Pong</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0e14;
+        overflow: hidden;
+      }
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        display: block;
+        background: #101522;
+      }
+      #boot-error {
+        position: fixed;
+        inset: 0;
+        display: none;
+        padding: 24px;
+        box-sizing: border-box;
+        overflow: auto;
+        color: #ff6b81;
+        background: #0b0e14;
+        font: 14px/1.5 ui-monospace, Consolas, monospace;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><canvas id="game"></canvas></div>
+    <pre id="boot-error"></pre>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

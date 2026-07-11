@@ -1,0 +1,65 @@
+# Brick Breaker Pong
+
+Pong as a siege: break through their castle wall before they break through
+yours, then make every shot through the breach count.
+
+Built from **`../10_brick-breaker-pong-spec-pass2.md`** (the build hand-off
+spec). **`../05_brick-breaker-pong-decisions-registry.md` is canonical for
+every decision and tuning value** — changes land there first, then propagate
+to `src/config/data/*.json`.
+
+## Stack
+
+TypeScript strict + HTML5 Canvas 2D, zero engine, zero runtime deps.
+Vite build, vitest tests, 120 Hz fixed-timestep deterministic sim decoupled
+from RAF rendering.
+
+## Commands
+
+```
+npm run dev        # dev server (config JSON hot-editable, fetched not bundled)
+npm run build      # typecheck + production build to dist/
+npm test           # vitest suites
+npm run lint       # ESLint incl. the sim determinism guards
+npm run typecheck  # tsc --noEmit
+```
+
+## Architecture invariants (lint-enforced)
+
+- No `Math.random` / `Date.now` / `performance.now` inside `src/sim/**` —
+  all sim randomness comes from seeded mulberry32 streams in `MatchState`.
+- `src/sim/**` may not import from `render/ audio/ ui/ persistence/ debug/`.
+- All tuning lives in `src/config/data/*.json`, validated at boot with
+  path-precise fatal reports; keys are the registry snake_case ids verbatim.
+- `main.ts` contains no gameplay logic.
+
+## Build phase status (spec Part VI — don't start N+1 until N's DoD passes)
+
+| Phase | Status |
+|---|---|
+| 0 — Scaffold & architecture skeleton | ✅ DoD verified 2026-07-10 |
+| 1 — Core physics prototype | ✅ DoD verified 2026-07-10 |
+| 2 — Walls, materials & the siege game | next |
+| 3–10 | pending |
+
+Phase 0 DoD evidence: dev serves a 1280×720 letterboxed canvas; live readout
+shows sim 120 Hz vs render 60 fps (plus headless cadence tests in
+`tests/loop.test.ts`); a deliberately broken `tuning.json` fails boot with
+`tuning.json: physics.ball_radius: expected number in [5, 10], got "7px"`;
+the lint guards reject `Math.random` and presentation imports in `src/sim`;
+CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build.
+
+Phase 1 DoD evidence: 2P local match playable start→finish (W/S vs ↑/↓);
+lives and per-lane breach-to-score verified live (debug-overlay event tail
+shows BallRemoved → LifeLost → HitStop → Serve on a real breach crossing);
+`tests/soak.tunneling.test.ts` runs 10k ticks × 3 seeds at the 3.3× cap with
+5 balls and dev invariants on — zero tunneling, zero MAX_BOUNCES exhaustion;
+the sim runs fully headless; `tests/replay.test.ts` records a 5000-tick
+scripted match and re-verifies hash-equal 600-tick checkpoints (and catches
+a tampered input at the first divergent checkpoint). Debug overlay: `` ` ``
+toggle, `P` pause-sim, `.` step one tick.
+
+Phase 1 A/B answers still open for the creator (playtest falsifiers built
+in): `backface_mode` (default "reflect"), `rebuild_on_life_lost` (all three
+modes implemented behind the config flag, default "none"), serve-direction
+and speed-curve feel — all tunable in `src/config/data/tuning.json`.
