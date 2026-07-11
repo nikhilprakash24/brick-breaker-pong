@@ -149,6 +149,8 @@ export interface MaterialDef {
 export interface ConfigRegistry {
   tuning: TuningTable;
   materials: Record<string, MaterialDef>;
+  /** LevelId → validated level (worlds.json manifest arrives in Phase 6). */
+  levels: Record<string, import("./levels").LevelDef>;
 }
 
 /** Per-side wall definition, resolved (layers[0] = frontmost, entries = material ids). */

@@ -16,6 +16,7 @@ import {
 import { paddleAabb } from "./paddle";
 import { cellAabb, laneHeight, MAX_LAYER_SLOTS } from "./wall";
 import { ARENA_W } from "./geometry";
+import { IS_DEV } from "./env";
 
 const DT_S = DT_MS / 1000;
 
@@ -137,7 +138,7 @@ export function integrateBall(
   }
   // Safety: loop exhausted MAX_BOUNCES — zero remaining silently (log in dev).
   simDiagnostics.maxBouncesExhausted += 1;
-  if (import.meta.env.DEV) {
+  if (IS_DEV) {
     console.warn(`[sim] MAX_BOUNCES exhausted for ball ${ball.id} at tick ${state.tick}`);
   }
 }

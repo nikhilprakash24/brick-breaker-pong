@@ -20,6 +20,7 @@ import type {
 } from "./state";
 import { ARENA_H, ARENA_W } from "./geometry";
 import { assertCacheConsistent, onLaneChanged } from "./breach";
+import { IS_DEV } from "./env";
 
 export const MAX_LAYER_SLOTS = 4;
 
@@ -128,7 +129,7 @@ export function damageCell(
   }
   onLaneChanged(state, side, lane, "damage", events);
   // §12.2: incremental caches equal a from-scratch recompute after every mutation.
-  if (import.meta.env.DEV) assertCacheConsistent(state, side);
+  if (IS_DEV) assertCacheConsistent(state, side);
   return { destroyed };
 }
 

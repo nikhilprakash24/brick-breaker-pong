@@ -39,8 +39,9 @@ npm run typecheck  # tsc --noEmit
 |---|---|
 | 0 — Scaffold & architecture skeleton | ✅ DoD verified 2026-07-10 |
 | 1 — Core physics prototype | ✅ DoD verified 2026-07-10 |
-| 2 — Walls, materials & the siege game | next |
-| 3–10 | pending |
+| 2 — Walls, materials & the siege game | ✅ DoD verified 2026-07-11 |
+| 3 — Arenas & wall objects | next |
+| 4–10 | pending |
 
 Phase 0 DoD evidence: dev serves a 1280×720 letterboxed canvas; live readout
 shows sim 120 Hz vs render 60 fps (plus headless cadence tests in
@@ -63,3 +64,17 @@ Phase 1 A/B answers still open for the creator (playtest falsifiers built
 in): `backface_mode` (default "reflect"), `rebuild_on_life_lost` (all three
 modes implemented behind the config flag, default "none"), serve-direction
 and speed-curve feel — all tunable in `src/config/data/tuning.json`.
+
+Phase 2 DoD evidence: level JSON fully describes both walls
+(`src/config/data/levels/*.json`, validated incl. the §2.2.5 authoring
+grammar — run-length strings, `| mirror`, `| mirror-check`, R-1.3 layer cap,
+0-layer sides, asymmetric walls); `npm run batch` runs the headless
+ReflexBot matchup matrix (layers × materials × lives, seeded/deterministic)
+and writes duration+ttfb rows to `tools/reports/tuning-report.csv`; the
+default level (`dev-flat`: hay front row over a brick-core rear) was
+recomposed FROM that matrix and lands on every SPEC-2.9 §2.9.1 target —
+duration median 223 s (band 120–240, p95 298 ≤ 420), ttfb median 79 s
+(band 45–90), rally median 5 (band 4–7), overtime rate 0%. Breach property
+tests (cache == recompute under randomized damage) green. In-game: press
+`1`/`2` on the menu to pick the level. The bot proxy is a stand-in for the
+Phase 4 AI; §2.9.2's full 200-seed protocol re-baselines these numbers then.

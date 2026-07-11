@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "id": "dev-asym",
+  "display_name": "Uneven Ground",
+  "rules": {
+    "lives": { "left": 3, "right": 2 },
+    "rebuild_on_life_lost": "breach_fill",
+    "rebuild_material": "hay",
+    "life_loss_per_exchange": 1,
+    "overtime_enabled": true,
+    "overtime_start": null,
+    "fixed_seed": null
+  },
+  "walls": {
+    "lane_count": 12,
+    "left": { "layers": ["brick*12"] },
+    "right": {
+      "layers": [
+        "hay*12",
+        "hay*2 brick*4 | mirror",
+        "hay*4 obsidian*1 hay*2 obsidian*1 hay*4 | mirror-check"
+      ]
+    }
+  }
+}

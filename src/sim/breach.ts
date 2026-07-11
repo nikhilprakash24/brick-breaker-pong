@@ -7,6 +7,7 @@
 
 import type { GameEvent } from "./events";
 import type { MatchState, Side, WallState } from "./state";
+import { IS_DEV } from "./env";
 
 /** breached(side, lane) ⇔ every layer's cell in that lane is null.
  *  layers.length === 0 ⇒ every lane is breached (0-layer side). */
@@ -96,7 +97,7 @@ export function recomputeAll(
   for (let lane = 0; lane < wall.laneCount; lane++) {
     onLaneChanged(state, side, lane, cause, events);
   }
-  if (import.meta.env.DEV) assertCacheConsistent(state, side);
+  if (IS_DEV) assertCacheConsistent(state, side);
 }
 
 /** Dev-build assertion: incremental caches equal a from-scratch recompute. */

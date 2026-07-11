@@ -24,6 +24,7 @@ import { recomputeAll } from "./breach";
 import { integrateBall, simDiagnostics } from "./ball";
 import { stepPaddles } from "./paddle";
 import { preStep, postStep } from "./rules";
+import { IS_DEV } from "./env";
 
 export type { GameEvent } from "./events";
 export type { MatchState, Side } from "./state";
@@ -170,7 +171,7 @@ export function stepMatch(state: MatchState, inputs: TickInputs): GameEvent[] {
   postStep(state, events);
 
   // Stage 9 — dev-build invariant assertions (§12.2).
-  if (import.meta.env.DEV) assertInvariants(state);
+  if (IS_DEV) assertInvariants(state);
 
   return events;
 }

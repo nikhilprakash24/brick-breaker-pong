@@ -119,7 +119,9 @@ export class Renderer {
       c.fillText("press any key", LOGICAL_W / 2, 360);
     } else if (appState === "MAIN_MENU") {
       c.font = "26px ui-monospace, monospace";
-      c.fillText("press any key to start — 2P: left W/S, right ↑/↓", LOGICAL_W / 2, 340);
+      c.fillText("1: Dev Court   2: Uneven Ground", LOGICAL_W / 2, 320);
+      c.font = "20px ui-monospace, monospace";
+      c.fillText("any key starts — 2P: left W/S, right ↑/↓", LOGICAL_W / 2, 366);
     }
   }
 

@@ -5,6 +5,7 @@
  */
 
 import type { ConfigRegistry, MaterialDef, TuningTable } from "./types";
+import { validateLevelJson, type LevelDef } from "./levels";
 import {
   bool,
   ConfigError,
@@ -267,18 +268,44 @@ export function validateTuningJson(raw: unknown): {
  * Fetch + validate + freeze (SPEC-3.1 §1.3). Rejects with ConfigError carrying
  * every path-precise finding; the caller renders the report (app FSM A2).
  */
+/** Level files shipped this phase; replaced by the worlds.json manifest (P6). */
+const LEVEL_FILES = ["dev-flat.json", "dev-asym.json"];
+
 export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
   const errors: ValidationError[] = [];
-  const [rawTuning, rawMaterials] = await Promise.all([
+  const [rawTuning, rawMaterials, ...rawLevels] = await Promise.all([
     fetchJson(baseUrl, "tuning.json", errors),
     fetchJson(baseUrl, "materials.json", errors),
+    ...LEVEL_FILES.map((f) => fetchJson(baseUrl, "levels/" + f, errors)),
   ]);
   if (errors.length > 0) throw new ConfigError(errors);
   const tuningResult = validateTuningJson(rawTuning);
   const materialsResult = validateMaterialsJson(rawMaterials);
   const all = [...tuningResult.errors, ...materialsResult.errors];
+  const levels: Record<string, LevelDef> = {};
+  if (materialsResult.materials) {
+    rawLevels.forEach((raw, i) => {
+      const file = "levels/" + LEVEL_FILES[i]!;
+      const { level, errors: levelErrors } = validateLevelJson(
+        file,
+        raw,
+        materialsResult.materials!,
+      );
+      all.push(...levelErrors);
+      if (level) {
+        if (levels[level.id]) {
+          all.push({ file, path: "id", message: `duplicate level id "${level.id}"` });
+        }
+        levels[level.id] = level;
+      }
+    });
+  }
   if (all.length > 0 || !tuningResult.tuning || !materialsResult.materials) {
     throw new ConfigError(all);
   }
-  return deepFreeze({ tuning: tuningResult.tuning, materials: materialsResult.materials });
+  return deepFreeze({
+    tuning: tuningResult.tuning,
+    materials: materialsResult.materials,
+    levels,
+  });
 }

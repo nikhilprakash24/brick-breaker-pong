@@ -6,8 +6,8 @@
 
 import { AppFsm } from "./app/appFsm";
 import { advanceAccumulator, createAccumulator, resetAccumulator } from "./app/loop";
-import { devMatchConfig } from "./app/devMatch";
 import { loadConfig } from "./config/load";
+import { resolveMatchConfig } from "./config/levels";
 import type { ConfigRegistry, MatchConfig } from "./config/types";
 import { NullController, type InputController } from "./input/controller";
 import { DEFAULT_BINDINGS, HumanController, KeyState } from "./input/keyboard";
@@ -49,10 +49,15 @@ let rateWindowStart = performance.now();
 let simHz = 0;
 let renderFps = 0;
 
+let selectedLevelId = "dev-flat";
+
 function startMatch(): void {
   if (!registry) return;
-  matchConfig = devMatchConfig(registry);
-  const seed = Date.now() & 0xffffffff; // seed chosen OUTSIDE the sim (§2.4)
+  const level = registry.levels[selectedLevelId] ?? Object.values(registry.levels)[0];
+  if (!level) return;
+  matchConfig = resolveMatchConfig(level, registry.tuning, registry.materials, "versus");
+  // Seed chosen OUTSIDE the sim (§2.4); levels may pin one for reproducibility.
+  const seed = level.rules.fixed_seed ?? Date.now() & 0xffffffff;
   curr = createMatch(matchConfig, seed);
   prev = takeSnapshot(curr);
   leftCtrl = new HumanController(keys, DEFAULT_BINDINGS.left);
@@ -85,8 +90,11 @@ window.addEventListener("keydown", (e) => {
     }
   }
   if (fsm.state === "TITLE") fsm.dispatch("anyKey");
-  else if (fsm.state === "MAIN_MENU") fsm.dispatch("selectStory");
-  else if (fsm.state === "RESULTS") fsm.dispatch("retry");
+  else if (fsm.state === "MAIN_MENU") {
+    if (e.code === "Digit2") selectedLevelId = "dev-asym";
+    else if (e.code === "Digit1") selectedLevelId = "dev-flat";
+    fsm.dispatch("selectStory");
+  } else if (fsm.state === "RESULTS") fsm.dispatch("retry");
 });
 
 function runTick(): void {
