@@ -15,8 +15,9 @@ import {
 } from "./physics/resolve";
 import { paddleAabb } from "./paddle";
 import { cellAabb, laneHeight, MAX_LAYER_SLOTS } from "./wall";
-import { ARENA_W } from "./geometry";
+import { ARENA_W, bottomY, slopeGradient, topY } from "./geometry";
 import { IS_DEV } from "./env";
+import { clampMinVx, reflect } from "./physics/reflect";
 
 const DT_S = DT_MS / 1000;
 
@@ -30,6 +31,37 @@ export const simDiagnostics = {
     this.depenetrations = 0;
   },
 };
+
+/**
+ * Slope "field" mode (§3.8.4): each tick, BEFORE the sweep loop, every ball
+ * receives vel.x += (−slope_accel × g(x)) × DT — decelerating uphill,
+ * accelerating downhill — then |vel| is clamped to [0.5×, max×] base speed
+ * and the min-|vx| clamp applies. The field only ever alters vel.x and is
+ * position-sampled at tick start (keeping the TOI algorithm untouched).
+ */
+export function applySlopeField(state: MatchState): void {
+  const slope = state.arena.slope;
+  if (!slope || slope.mode !== "field") return;
+  const tuning = state.config.tuning;
+  const accel = tuning.physics.slope_accel;
+  const base = tuning.physics.ball_base_speed;
+  const floor = base * 0.5; // slope_speed_floor_mult (GR2-15)
+  const ceil = base * tuning.physics.ball_max_speed_mult;
+  for (const ball of state.balls) {
+    const g = slopeGradient(slope, ball.pos.x);
+    if (g !== 0) ball.vel.x += -accel * g * DT_S;
+    const speed = Math.hypot(ball.vel.x, ball.vel.y);
+    if (speed > 0) {
+      const clamped = Math.max(floor, Math.min(ceil, speed));
+      if (clamped !== speed) {
+        const s = clamped / speed;
+        ball.vel.x *= s;
+        ball.vel.y *= s;
+      }
+    }
+    clampMinVx(ball, tuning);
+  }
+}
 
 function sweepHull(pos: Vec2, d: Vec2, r: number): AABB {
   return {
@@ -49,7 +81,15 @@ function gatherCandidates(state: MatchState, ball: BallState, d: Vec2): Collider
   const out: Collider[] = [];
 
   for (const seg of state.arena.segments) {
-    if (aabbOverlap(hull, seg.aabb)) out.push({ id: seg.id, kind: "segment", seg });
+    if (!aabbOverlap(hull, seg.aabb)) continue;
+    // One-way pass filter (§3.3): transparent when approached along the
+    // allowed direction (d·blockNormal ≥ 0), else a plain reflector.
+    if (seg.kind === "oneWay") {
+      const obj = state.wallObjects[seg.objectIndex];
+      const bn = obj?.blockNormal;
+      if (bn && d.x * bn.x + d.y * bn.y >= 0) continue;
+    }
+    out.push({ id: seg.id, kind: "segment", seg });
   }
 
   for (const side of ["left", "right"] as const) {
@@ -101,6 +141,7 @@ export function integrateBall(
   const eps = tuning.physics.skin_eps;
   const maxBounces = tuning.physics.max_bounces_per_tick;
   let remaining = 1.0;
+  const finish = (): void => containToHull(state, ball);
 
   for (let bounce = 0; bounce < maxBounces; bounce++) {
     const d: Vec2 = { x: ball.vel.x * DT_S * remaining, y: ball.vel.y * DT_S * remaining };
@@ -126,6 +167,7 @@ export function integrateBall(
     if (best === null) {
       ball.pos.x += d.x;
       ball.pos.y += d.y;
+      finish();
       return;
     }
     ball.pos.x += d.x * best.hit.t;
@@ -134,11 +176,44 @@ export function integrateBall(
     ball.pos.y += best.hit.normal.y * eps;
     const outcome = resolveHit(state, ball, best.c, best.hit, paddleVelY, events);
     remaining *= 1 - best.hit.t;
-    if (outcome === "consumed") return;
+    if (outcome === "consumed") return; // ball removed — nothing to contain
   }
   // Safety: loop exhausted MAX_BOUNCES — zero remaining silently (log in dev).
   simDiagnostics.maxBouncesExhausted += 1;
+  finish();
   if (IS_DEV) {
     console.warn(`[sim] MAX_BOUNCES exhausted for ball ${ball.id} at tick ${state.tick}`);
   }
+}
+
+/**
+ * De-penetration fallback (§3.4.4): a ball that a fast diagonal slip carried
+ * outside the court hull (rare, at convex arena corners under extreme speed)
+ * is pushed back to the nearest boundary and reflected off its local normal.
+ * Contained balls stay physical; the counter is asserted low in soak.
+ */
+function containToHull(state: MatchState, ball: BallState): void {
+  const r = ball.radius;
+  const x = ball.pos.x;
+  const ty = topY(state.arena, x);
+  const by = bottomY(state.arena, x);
+  const localNormal = (sampler: (a: typeof state.arena, x: number) => number, inwardY: 1 | -1): Vec2 => {
+    const slope = (sampler(state.arena, x + 1) - sampler(state.arena, x - 1)) / 2;
+    const len = Math.hypot(1, slope) || 1;
+    // Inward normal: perpendicular to the tangent (1, slope), pointing into court.
+    return { x: (-slope * inwardY) / len, y: inwardY / len };
+  };
+  if (ball.pos.y < ty + r) {
+    ball.pos.y = ty + r;
+    const n = localNormal(topY, 1); // court is below the top boundary
+    if (ball.vel.x * n.x + ball.vel.y * n.y < 0) reflect(ball.vel, n);
+    simDiagnostics.depenetrations += 1;
+  } else if (ball.pos.y > by - r) {
+    ball.pos.y = by - r;
+    const n = localNormal(bottomY, -1); // court is above the bottom boundary
+    if (ball.vel.x * n.x + ball.vel.y * n.y < 0) reflect(ball.vel, n);
+    simDiagnostics.depenetrations += 1;
+  }
+  // x is bounded by walls + back boundaries; a ball past x=0/1280 has already
+  // been resolved as a crossing, so no x-containment is needed here.
 }

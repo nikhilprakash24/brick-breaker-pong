@@ -40,8 +40,9 @@ npm run typecheck  # tsc --noEmit
 | 0 — Scaffold & architecture skeleton | ✅ DoD verified 2026-07-10 |
 | 1 — Core physics prototype | ✅ DoD verified 2026-07-10 |
 | 2 — Walls, materials & the siege game | ✅ DoD verified 2026-07-11 |
-| 3 — Arenas & wall objects | next |
-| 4–10 | pending |
+| 3 — Arenas & wall objects | ✅ DoD verified 2026-07-11 |
+| 4 — Opponent AI | next |
+| 5–10 | pending |
 
 Phase 0 DoD evidence: dev serves a 1280×720 letterboxed canvas; live readout
 shows sim 120 Hz vs render 60 fps (plus headless cadence tests in
@@ -64,6 +65,21 @@ Phase 1 A/B answers still open for the creator (playtest falsifiers built
 in): `backface_mode` (default "reflect"), `rebuild_on_life_lost` (all three
 modes implemented behind the config flag, default "none"), serve-direction
 and speed-curve feel — all tunable in `src/config/data/tuning.json`.
+
+Phase 3 DoD evidence: all five arena shapes bake and play — flat, slope
+(both `reflection_only` and `field` modes, `slope_accel` 400), angular,
+narrowing, zig-zag — authored by profile or explicit vertex lists and
+validated against the §3.8.1 rules (increasing x, flat end zones, min court
+height). Levers (recall to last hitter), directional panels (global
+`panels.json` colour→direction map), and one-way tiles (interior inset gates)
+trigger with cooldowns and correct redirects. `npm run view -- <level>`
+renders any level's baked colliders as ASCII and runs a spray-soak; all five
+arenas + the object levels pass with **zero out-of-hull balls and zero
+MAX_BOUNCES exhaustion**, and the tunneling soak now runs on flat AND
+slope-field arenas (a §3.4.4 de-penetration fallback contains rare convex-
+corner slips under forced-cap stress). Slope serve-clearance verified (no
+ramp-clipped serves at ±25°); stall watchdog (R-5.4) verified on soft-nudge
+and hard-void fixtures. Menu keys `1`–`6` pick the arena.
 
 Phase 2 DoD evidence: level JSON fully describes both walls
 (`src/config/data/levels/*.json`, validated incl. the §2.2.5 authoring

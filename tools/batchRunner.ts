@@ -17,9 +17,11 @@ import { createMatch, stepMatch } from "../src/sim";
 import type { MatchConfig } from "../src/config/types";
 import {
   validateMaterialsJson,
+  validatePanelsJson,
   validateTuningJson,
 } from "../src/config/load";
 import { validateLevelJson, resolveMatchConfig } from "../src/config/levels";
+import { flatArena } from "../src/sim/geometry";
 import { ReflexBot } from "./reflexBot";
 import { SIM_HZ } from "../src/app/loop";
 
@@ -32,7 +34,8 @@ function readJson(p: string): unknown {
 
 const { tuning } = validateTuningJson(readJson(join(dataDir, "tuning.json")));
 const { materials } = validateMaterialsJson(readJson(join(dataDir, "materials.json")));
-if (!tuning || !materials) throw new Error("config invalid — run npm test");
+const { panels } = validatePanelsJson(readJson(join(dataDir, "panels.json")));
+if (!tuning || !materials || !panels) throw new Error("config invalid — run npm test");
 
 // ── matrix ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +60,9 @@ function matrixConfig(comp: Comp, layers: number, lives: number): MatchConfig {
     materials: materials!,
     laneCount: 12,
     walls: { left: { layers: wall.layers.map((l) => [...l]) }, right: { layers: wall.layers.map((l) => [...l]) } },
+    arena: flatArena(),
+    objects: [],
+    panels: panels!,
     rules: {
       lives: { left: lives, right: lives },
       rebuild_on_life_lost: "none",
@@ -161,11 +167,11 @@ const configs: { name: string; config: MatchConfig }[] = [];
 // The shipped default level — the Phase 2 DoD band check.
 {
   const raw = readJson(join(dataDir, "levels", "dev-flat.json"));
-  const { level, errors } = validateLevelJson("dev-flat.json", raw, materials);
+  const { level, errors } = validateLevelJson("dev-flat.json", raw, materials, panels);
   if (!level) throw new Error("dev-flat invalid: " + JSON.stringify(errors));
   configs.push({
     name: "default(dev-flat)",
-    config: resolveMatchConfig(level, tuning, materials, "versus"),
+    config: resolveMatchConfig(level, tuning, materials, panels, "versus"),
   });
 }
 

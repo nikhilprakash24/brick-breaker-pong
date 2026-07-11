@@ -55,7 +55,13 @@ function startMatch(): void {
   if (!registry) return;
   const level = registry.levels[selectedLevelId] ?? Object.values(registry.levels)[0];
   if (!level) return;
-  matchConfig = resolveMatchConfig(level, registry.tuning, registry.materials, "versus");
+  matchConfig = resolveMatchConfig(
+    level,
+    registry.tuning,
+    registry.materials,
+    registry.panels,
+    "versus",
+  );
   // Seed chosen OUTSIDE the sim (§2.4); levels may pin one for reproducibility.
   const seed = level.rules.fixed_seed ?? Date.now() & 0xffffffff;
   curr = createMatch(matchConfig, seed);
@@ -91,8 +97,15 @@ window.addEventListener("keydown", (e) => {
   }
   if (fsm.state === "TITLE") fsm.dispatch("anyKey");
   else if (fsm.state === "MAIN_MENU") {
-    if (e.code === "Digit2") selectedLevelId = "dev-asym";
-    else if (e.code === "Digit1") selectedLevelId = "dev-flat";
+    const byDigit: Record<string, string> = {
+      Digit1: "dev-flat",
+      Digit2: "dev-asym",
+      Digit3: "dev-slope",
+      Digit4: "dev-angular",
+      Digit5: "dev-narrowing",
+      Digit6: "dev-zigzag",
+    };
+    if (byDigit[e.code]) selectedLevelId = byDigit[e.code]!;
     fsm.dispatch("selectStory");
   } else if (fsm.state === "RESULTS") fsm.dispatch("retry");
 });

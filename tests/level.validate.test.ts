@@ -12,7 +12,7 @@ import {
   validateLevelJson,
 } from "../src/config/levels";
 import type { ValidationError } from "../src/config/validate";
-import { materials, tuning } from "./helpers";
+import { materials, panels, tuning } from "./helpers";
 
 function goodLevel(): Record<string, unknown> {
   return JSON.parse(
@@ -117,7 +117,7 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
       const raw = JSON.parse(
         readFileSync(new URL(`../src/config/data/levels/${f}`, import.meta.url), "utf-8"),
       );
-      const { level, errors } = validateLevelJson(f, raw, materials);
+      const { level, errors } = validateLevelJson(f, raw, materials, panels);
       expect(errors).toEqual([]);
       expect(level).toBeDefined();
       expect(level!.walls.left.layers.every((l) => l.length === level!.walls.lane_count)).toBe(true);
@@ -129,7 +129,7 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
     (bad.walls as { left: { layers: unknown[] } }).left.layers = [
       "hay*12", "hay*12", "hay*12", "hay*12",
     ];
-    const { level, errors } = validateLevelJson("t.json", bad, materials);
+    const { level, errors } = validateLevelJson("t.json", bad, materials, panels);
     expect(level).toBeUndefined();
     expect(errors[0]!.path).toBe("walls.left.layers");
     expect(errors[0]!.message).toContain("max is 3");
@@ -138,7 +138,7 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
   it("accepts a 0-layer side", () => {
     const lvl = goodLevel();
     (lvl.walls as { left: { layers: unknown[] } }).left.layers = [];
-    const { level, errors } = validateLevelJson("t.json", lvl, materials);
+    const { level, errors } = validateLevelJson("t.json", lvl, materials, panels);
     expect(errors).toEqual([]);
     expect(level!.walls.left.layers).toEqual([]);
   });
@@ -146,7 +146,7 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
   it("rejects an unknown rebuild material with a path-precise report", () => {
     const bad = goodLevel();
     (bad.rules as Record<string, unknown>).rebuild_material = "straw";
-    const { errors } = validateLevelJson("t.json", bad, materials);
+    const { errors } = validateLevelJson("t.json", bad, materials, panels);
     expect(errors).toContainEqual(
       expect.objectContaining({ path: "rules.rebuild_material" }),
     );
@@ -156,7 +156,7 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
     const bad = goodLevel();
     (bad as Record<string, unknown>).arena_shape = "flat";
     delete (bad as Record<string, unknown>).display_name;
-    const { errors } = validateLevelJson("t.json", bad, materials);
+    const { errors } = validateLevelJson("t.json", bad, materials, panels);
     expect(errors.map((e) => e.path)).toContain("arena_shape");
     expect(errors.map((e) => e.path)).toContain("display_name");
   });
@@ -164,16 +164,16 @@ describe("level schema (§7.3 Phase-2 subset)", () => {
 
 describe("resolveMatchConfig (§7.7)", () => {
   it("story mode: the human (left) receives first (R-2.1)", () => {
-    const { level } = validateLevelJson("dev-flat.json", goodLevel(), materials);
-    const cfg = resolveMatchConfig(level!, tuning, materials, "story");
+    const { level } = validateLevelJson("dev-flat.json", goodLevel(), materials, panels);
+    const cfg = resolveMatchConfig(level!, tuning, materials, panels, "story");
     expect(cfg.rules.first_receiver).toBe("left");
     expect(cfg.laneCount).toBe(12);
     expect(cfg.walls.left.layers).toHaveLength(2);
   });
 
   it("versus mode: seeded coin flip", () => {
-    const { level } = validateLevelJson("dev-flat.json", goodLevel(), materials);
-    const cfg = resolveMatchConfig(level!, tuning, materials, "versus");
+    const { level } = validateLevelJson("dev-flat.json", goodLevel(), materials, panels);
+    const cfg = resolveMatchConfig(level!, tuning, materials, panels, "versus");
     expect(cfg.rules.first_receiver).toBe("random");
   });
 });

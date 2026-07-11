@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "panels": {
+    "amber": { "glyph": "↘", "dir": [0.766, 0.643] },
+    "lime": { "glyph": "↗", "dir": [0.766, -0.643] },
+    "violet": { "glyph": "↙", "dir": [-0.766, 0.643] },
+    "teal": { "glyph": "↖", "dir": [-0.766, -0.643] },
+    "coral": { "glyph": "→", "dir": [1, 0] },
+    "indigo": { "glyph": "←", "dir": [-1, 0] }
+  }
+}

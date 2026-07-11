@@ -18,10 +18,10 @@ import type {
 } from "./state";
 import { emptyLatchedInput } from "./state";
 import { deriveStream, STREAM_MISC, STREAM_POWERUP, STREAM_SERVE } from "./rng";
-import { bakeFlatArena, bottomY, topY, ARENA_H, ARENA_W } from "./geometry";
+import { bakeArena, bottomY, topY, ARENA_H, ARENA_W } from "./geometry";
 import { buildWall } from "./wall";
 import { recomputeAll } from "./breach";
-import { integrateBall, simDiagnostics } from "./ball";
+import { applySlopeField, integrateBall, simDiagnostics } from "./ball";
 import { stepPaddles } from "./paddle";
 import { preStep, postStep } from "./rules";
 import { IS_DEV } from "./env";
@@ -70,6 +70,7 @@ function makeSide(side: Side, config: MatchConfig): SideState {
 
 /** Pure: same (config, seed) ⇒ identical state. */
 export function createMatch(config: MatchConfig, seed: number): MatchState {
+  const baked = bakeArena(config.arena, config.objects, config.panels);
   const state: MatchState = {
     tick: 0,
     matchSeed: seed | 0,
@@ -79,8 +80,8 @@ export function createMatch(config: MatchConfig, seed: number): MatchState {
     sides: { left: makeSide("left", config), right: makeSide("right", config) },
     balls: [],
     effects: [],
-    wallObjects: [],
-    arena: bakeFlatArena(),
+    wallObjects: baked.wallObjects,
+    arena: baked.runtime,
     rally: {
       hitCount: 0,
       lastThresholdHitBy: null,
@@ -153,15 +154,20 @@ export function stepMatch(state: MatchState, inputs: TickInputs): GameEvent[] {
 
   // Stage 5 — powerup effect ticking (Phase 5).
 
-  // Stage 6 — ball integration, ascending ball id. Iterate a snapshot: balls
-  // may despawn mid-stage (crossings queue; resolution is stage 8, AR2-4).
+  // Stage 6 — slope field (§3.8.4), then ball integration in ascending ball
+  // id. Iterate a snapshot: balls may despawn mid-stage (crossings queue;
+  // resolution is stage 8, AR2-4).
+  applySlopeField(state);
   const ballIds = state.balls.map((b) => b.id);
   for (const id of ballIds) {
     const ball = state.balls.find((b) => b.id === id);
     if (ball) integrateBall(state, ball, paddleVelY, events);
   }
 
-  // Stage 7 — object/placement cooldown ticking.
+  // Stage 7 — wall-object + placement cooldown ticking.
+  for (const obj of state.wallObjects) {
+    if (obj.cooldownTicks > 0) obj.cooldownTicks -= 1;
+  }
   for (const side of ["left", "right"] as const) {
     const s = state.sides[side];
     if (s.placementCooldownTicks > 0) s.placementCooldownTicks -= 1;
@@ -249,6 +255,7 @@ export function cloneMatchState(state: MatchState): MatchState {
     wallObjects: state.wallObjects.map((w) => ({
       ...w,
       ...(w.panelDir ? { panelDir: { ...w.panelDir } } : {}),
+      ...(w.blockNormal ? { blockNormal: { ...w.blockNormal } } : {}),
     })),
     arena: state.arena, // immutable after createMatch — shared
     rally: { ...state.rally, exchangeLifeLost: { ...state.rally.exchangeLifeLost } },

@@ -11,7 +11,8 @@
     "lint": "eslint src tests",
     "test": "vitest run",
     "test:watch": "vitest",
-    "batch": "tsx tools/batchRunner.ts"
+    "batch": "tsx tools/batchRunner.ts",
+    "view": "tsx tools/levelViewer.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

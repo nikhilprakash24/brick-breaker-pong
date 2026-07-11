@@ -54,9 +54,14 @@ export function resolveHit(
 
   switch (collider.kind) {
     case "segment": {
-      if (collider.seg.kind === "back") {
-        return resolveBackBoundary(state, ball, collider.seg.backSide!, events);
+      const seg = collider.seg;
+      if (seg.kind === "back") {
+        return resolveBackBoundary(state, ball, seg.backSide!, events);
       }
+      if (seg.kind === "lever" || seg.kind === "panel") {
+        return resolveWallObject(state, ball, seg, hit, events);
+      }
+      // Plain boundary, oneWay (when it reflects), or a cooling lever/panel.
       reflect(ball.vel, hit.normal);
       clampMinVx(ball, tuning);
       return "continue";
@@ -146,6 +151,62 @@ export function resolveHit(
       return "continue";
     }
   }
+}
+
+/**
+ * Lever / panel (§3.9.2–3.9.3). A cooling object (cooldownTicks > 0) is a
+ * plain boundary. Neither affects the rally counter (R-3.4).
+ */
+function resolveWallObject(
+  state: MatchState,
+  ball: BallState,
+  seg: ArenaSegment,
+  hit: Hit,
+  events: GameEvent[],
+): ResolveOutcome {
+  const tuning = state.config.tuning;
+  const obj = state.wallObjects[seg.objectIndex];
+  if (!obj || obj.cooldownTicks > 0) {
+    reflect(ball.vel, hit.normal);
+    clampMinVx(ball, tuning);
+    return "continue";
+  }
+  const speed = Math.hypot(ball.vel.x, ball.vel.y);
+
+  if (obj.kind === "lever") {
+    // Recall toward the last paddle-hitter's own side (§3.9.2). Untouched
+    // serve (no lastHitBy) ⇒ plain reflection.
+    if (ball.lastHitBy === null) {
+      reflect(ball.vel, hit.normal);
+      clampMinVx(ball, tuning);
+      return "continue";
+    }
+    // Target (planeX, ball.y): the direction is purely horizontal toward the
+    // hitter's own paddle plane; the min-|vx| clamp adds the vertical floor.
+    const planeX =
+      ball.lastHitBy === "left"
+        ? tuning.paddle.paddle_plane_x_left
+        : tuning.paddle.paddle_plane_x_right;
+    ball.vel.x = Math.sign(planeX - ball.pos.x) * speed;
+    ball.vel.y = 0;
+  } else {
+    // Panel: set direction to the panel vector (or its negation while
+    // flipped), magnitude preserved (§3.9.3).
+    const dir = obj.panelDir ?? { x: 1, y: 0 };
+    const sign = obj.flipped ? -1 : 1;
+    ball.vel.x = sign * dir.x * speed;
+    ball.vel.y = sign * dir.y * speed;
+  }
+  clampMinVx(ball, tuning);
+  obj.cooldownTicks = obj.cooldownTotal;
+  events.push({
+    type: "WallObjectTriggered",
+    objectIndex: obj.index,
+    kind: obj.kind === "lever" ? "lever" : "panel",
+    ballId: ball.id,
+    newVel: { x: ball.vel.x, y: ball.vel.y },
+  });
+  return "continue";
 }
 
 /** Back boundary (§3.4.3 last row): shield, else queue the crossing. */

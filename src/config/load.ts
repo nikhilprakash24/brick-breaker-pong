@@ -4,7 +4,7 @@
  * is fatal with a path-precise report — there is no partial boot.
  */
 
-import type { ConfigRegistry, MaterialDef, TuningTable } from "./types";
+import type { ConfigRegistry, MaterialDef, PanelColorMap, TuningTable } from "./types";
 import { validateLevelJson, type LevelDef } from "./levels";
 import {
   bool,
@@ -250,6 +250,57 @@ export function validateMaterialsJson(raw: unknown): {
   return { materials: out, errors };
 }
 
+/** panels.json (SPEC-2.4 §5.2): global color→direction map. */
+export function validatePanelsJson(raw: unknown): {
+  panels?: PanelColorMap;
+  errors: ValidationError[];
+} {
+  const file = "panels.json";
+  const errors: ValidationError[] = [];
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    errors.push({ file, path: "(root)", message: `expected an object, got ${JSON.stringify(raw)}` });
+    return { errors };
+  }
+  const obj = raw as Record<string, unknown>;
+  int(1, 1)(obj.schema_version, { file, path: "schema_version", errors });
+  const table = obj.panels;
+  if (typeof table !== "object" || table === null || Array.isArray(table)) {
+    errors.push({ file, path: "panels", message: "expected an object of panel color defs" });
+    return { errors };
+  }
+  const out: PanelColorMap = {};
+  const entries = table as Record<string, unknown>;
+  for (const id of Object.keys(entries)) {
+    const def = entries[id];
+    if (typeof def !== "object" || def === null) {
+      errors.push({ file, path: `panels.${id}`, message: "expected a panel def" });
+      continue;
+    }
+    const d = def as Record<string, unknown>;
+    const glyph = d.glyph;
+    const dir = d.dir;
+    if (typeof glyph !== "string" || glyph.length === 0) {
+      errors.push({ file, path: `panels.${id}.glyph`, message: "expected a non-empty string" });
+    }
+    if (
+      !Array.isArray(dir) ||
+      dir.length !== 2 ||
+      typeof dir[0] !== "number" ||
+      typeof dir[1] !== "number"
+    ) {
+      errors.push({ file, path: `panels.${id}.dir`, message: "expected [x, y] numbers" });
+      continue;
+    }
+    const mag = Math.hypot(dir[0], dir[1]);
+    if (Math.abs(mag - 1) > 1e-2) {
+      errors.push({ file, path: `panels.${id}.dir`, message: `direction must be ~unit length, |v| = ${mag.toFixed(3)}` });
+    }
+    if (typeof glyph === "string") out[id] = { glyph, dir: { x: dir[0], y: dir[1] } };
+  }
+  if (errors.length > 0) return { errors };
+  return { panels: out, errors };
+}
+
 /** Pure validation entry point (unit-tested per §12.1). */
 export function validateTuningJson(raw: unknown): {
   tuning?: TuningTable;
@@ -269,27 +320,37 @@ export function validateTuningJson(raw: unknown): {
  * every path-precise finding; the caller renders the report (app FSM A2).
  */
 /** Level files shipped this phase; replaced by the worlds.json manifest (P6). */
-const LEVEL_FILES = ["dev-flat.json", "dev-asym.json"];
+const LEVEL_FILES = [
+  "dev-flat.json",
+  "dev-asym.json",
+  "dev-slope.json",
+  "dev-angular.json",
+  "dev-narrowing.json",
+  "dev-zigzag.json",
+];
 
 export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
   const errors: ValidationError[] = [];
-  const [rawTuning, rawMaterials, ...rawLevels] = await Promise.all([
+  const [rawTuning, rawMaterials, rawPanels, ...rawLevels] = await Promise.all([
     fetchJson(baseUrl, "tuning.json", errors),
     fetchJson(baseUrl, "materials.json", errors),
+    fetchJson(baseUrl, "panels.json", errors),
     ...LEVEL_FILES.map((f) => fetchJson(baseUrl, "levels/" + f, errors)),
   ]);
   if (errors.length > 0) throw new ConfigError(errors);
   const tuningResult = validateTuningJson(rawTuning);
   const materialsResult = validateMaterialsJson(rawMaterials);
-  const all = [...tuningResult.errors, ...materialsResult.errors];
+  const panelsResult = validatePanelsJson(rawPanels);
+  const all = [...tuningResult.errors, ...materialsResult.errors, ...panelsResult.errors];
   const levels: Record<string, LevelDef> = {};
-  if (materialsResult.materials) {
+  if (materialsResult.materials && panelsResult.panels) {
     rawLevels.forEach((raw, i) => {
       const file = "levels/" + LEVEL_FILES[i]!;
       const { level, errors: levelErrors } = validateLevelJson(
         file,
         raw,
         materialsResult.materials!,
+        panelsResult.panels!,
       );
       all.push(...levelErrors);
       if (level) {
@@ -300,12 +361,13 @@ export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
       }
     });
   }
-  if (all.length > 0 || !tuningResult.tuning || !materialsResult.materials) {
+  if (all.length > 0 || !tuningResult.tuning || !materialsResult.materials || !panelsResult.panels) {
     throw new ConfigError(all);
   }
   return deepFreeze({
     tuning: tuningResult.tuning,
     materials: materialsResult.materials,
+    panels: panelsResult.panels,
     levels,
   });
 }

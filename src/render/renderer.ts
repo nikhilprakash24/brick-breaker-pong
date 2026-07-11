@@ -90,7 +90,9 @@ export class Renderer {
       return;
     }
 
+    this.drawArena(curr);
     this.drawWalls(curr);
+    this.drawObjects(curr);
     this.drawCenterLine();
     this.drawPaddles(curr, prev, alpha);
     this.drawBalls(curr, prev, alpha);
@@ -118,11 +120,80 @@ export class Renderer {
       c.font = "20px ui-monospace, monospace";
       c.fillText("press any key", LOGICAL_W / 2, 360);
     } else if (appState === "MAIN_MENU") {
-      c.font = "26px ui-monospace, monospace";
-      c.fillText("1: Dev Court   2: Uneven Ground", LOGICAL_W / 2, 320);
-      c.font = "20px ui-monospace, monospace";
-      c.fillText("any key starts — 2P: left W/S, right ↑/↓", LOGICAL_W / 2, 366);
+      c.font = "22px ui-monospace, monospace";
+      c.fillText("1 Flat   2 Asymmetric   3 Slope(field)", LOGICAL_W / 2, 300);
+      c.fillText("4 Angular   5 Narrowing   6 Zig-zag", LOGICAL_W / 2, 332);
+      c.font = "18px ui-monospace, monospace";
+      c.fillText("pick a number to start — 2P: left W/S, right ↑/↓", LOGICAL_W / 2, 380);
     }
+  }
+
+  private drawArena(state: Readonly<MatchState>): void {
+    const c = this.ctx;
+    c.strokeStyle = "#3a4570";
+    c.lineWidth = 3;
+    for (const verts of [state.arena.topVerts, state.arena.bottomVerts]) {
+      c.beginPath();
+      verts.forEach((p, i) => (i === 0 ? c.moveTo(p.x, p.y) : c.lineTo(p.x, p.y)));
+      c.stroke();
+    }
+  }
+
+  private drawObjects(state: Readonly<MatchState>): void {
+    const c = this.ctx;
+    const panelColors: Record<string, string> = {
+      amber: "#e0a03a",
+      lime: "#8fd14a",
+      violet: "#9b6cd6",
+      teal: "#3ec7c0",
+      coral: "#e56a5a",
+      indigo: "#6a6ae0",
+    };
+    // Resolve object → its baked segment for endpoints + glyph placement.
+    const segById = new Map(state.arena.segments.map((s) => [s.id, s]));
+    for (const obj of state.wallObjects) {
+      const seg = segById.get(obj.segmentId);
+      if (!seg) continue;
+      const cooling = obj.cooldownTicks > 0;
+      const mx = (seg.a.x + seg.b.x) / 2;
+      const my = (seg.a.y + seg.b.y) / 2;
+      c.lineWidth = 5;
+      if (obj.kind === "lever") {
+        c.strokeStyle = cooling ? "#5a6a4a" : "#c8e06a";
+      } else if (obj.kind === "panel") {
+        // color id lookup: match panelDir back to a color name is lossy, so
+        // just tint by armed state; the glyph carries the direction.
+        c.strokeStyle = cooling ? "#555" : "#d8d8e0";
+      } else {
+        c.strokeStyle = "#7a7ad0"; // oneWay
+      }
+      c.beginPath();
+      c.moveTo(seg.a.x, seg.a.y);
+      c.lineTo(seg.b.x, seg.b.y);
+      c.stroke();
+      // Glyph
+      c.fillStyle = c.strokeStyle;
+      c.font = "16px ui-monospace, monospace";
+      c.textAlign = "center";
+      const glyph =
+        obj.kind === "lever"
+          ? "⇄"
+          : obj.kind === "oneWay"
+            ? obj.blockNormal && obj.blockNormal.x > 0
+              ? "»"
+              : "«"
+            : this.panelGlyph(obj.panelDir);
+      const off = my < ARENA_H / 2 ? 16 : -8;
+      c.fillText(glyph, mx, my + off);
+      void panelColors;
+    }
+  }
+
+  private panelGlyph(dir?: { x: number; y: number }): string {
+    if (!dir) return "◆";
+    if (Math.abs(dir.y) < 0.1) return dir.x > 0 ? "→" : "←";
+    if (dir.x > 0) return dir.y > 0 ? "↘" : "↗";
+    return dir.y > 0 ? "↙" : "↖";
   }
 
   private drawCenterLine(): void {

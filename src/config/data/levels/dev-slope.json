@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "id": "dev-flat",
-  "display_name": "Dev Court",
+  "id": "dev-slope",
+  "display_name": "The Ramp",
   "rules": {
     "lives": { "left": 3, "right": 3 },
     "rebuild_on_life_lost": "none",
@@ -16,6 +16,16 @@
     "left": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] },
     "right": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] }
   },
-  "arena": { "profile": "flat" },
+  "arena": {
+    "profile": "slope",
+    "params": {
+      "ramp_start_x": 280,
+      "plateau_start_x": 520,
+      "plateau_end_x": 760,
+      "ramp_end_x": 1000,
+      "slope_height": 120
+    },
+    "slope_influence": "field"
+  },
   "objects": []
 }

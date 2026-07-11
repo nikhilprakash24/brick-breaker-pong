@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
-  "id": "dev-flat",
-  "display_name": "Dev Court",
+  "id": "dev-zigzag",
+  "display_name": "Braided Lanes",
   "rules": {
     "lives": { "left": 3, "right": 3 },
     "rebuild_on_life_lost": "none",
@@ -16,6 +16,9 @@
     "left": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] },
     "right": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] }
   },
-  "arena": { "profile": "flat" },
-  "objects": []
+  "arena": { "profile": "zigzag" },
+  "objects": [
+    { "type": "panel", "boundary": "top", "t": 0.28, "length": 60, "color": "amber", "cooldown_ms": 1500 },
+    { "type": "panel", "boundary": "top", "t": 0.55, "length": 60, "color": "violet", "cooldown_ms": 1500 }
+  ]
 }

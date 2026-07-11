@@ -5,8 +5,17 @@
  */
 
 import { readFileSync } from "node:fs";
-import { validateMaterialsJson, validateTuningJson } from "../src/config/load";
-import type { MatchConfig, MaterialDef, TuningTable } from "../src/config/types";
+import {
+  validateMaterialsJson,
+  validatePanelsJson,
+  validateTuningJson,
+} from "../src/config/load";
+import type {
+  MatchConfig,
+  MaterialDef,
+  PanelColorMap,
+  TuningTable,
+} from "../src/config/types";
 import { neutralSideInput, type SideInput, type TickInputs } from "../src/input/controller";
 
 function readJson(rel: string): unknown {
@@ -27,12 +36,20 @@ export const materials: Record<string, MaterialDef> = (() => {
   return materials;
 })();
 
+export const panels: PanelColorMap = (() => {
+  const { panels, errors } = validatePanelsJson(readJson("../src/config/data/panels.json"));
+  if (!panels) throw new Error("panels fixture invalid: " + JSON.stringify(errors));
+  return panels;
+})();
+
 export interface MatchConfigOverrides {
   wallsLeft?: string[][];
   wallsRight?: string[][];
   laneCount?: number;
   rules?: Partial<MatchConfig["rules"]>;
   tuning?: TuningTable;
+  arena?: MatchConfig["arena"];
+  objects?: MatchConfig["objects"];
 }
 
 export function testMatchConfig(overrides: MatchConfigOverrides = {}): MatchConfig {
@@ -47,6 +64,13 @@ export function testMatchConfig(overrides: MatchConfigOverrides = {}): MatchConf
       left: { layers: overrides.wallsLeft ?? [filled("brick"), filled("hay")] },
       right: { layers: overrides.wallsRight ?? [filled("brick"), filled("hay")] },
     },
+    arena: overrides.arena ?? {
+      topVerts: [{ x: 0, y: 0 }, { x: 1280, y: 0 }],
+      bottomVerts: [{ x: 0, y: 720 }, { x: 1280, y: 720 }],
+      slope: null,
+    },
+    objects: overrides.objects ?? [],
+    panels,
     rules: {
       lives: { left: 3, right: 3 },
       rebuild_on_life_lost: "none",

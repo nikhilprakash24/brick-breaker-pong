@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { createMatch, stepMatch } from "../src/sim";
 import { resolveMatchConfig, validateLevelJson } from "../src/config/levels";
 import { ReflexBot } from "../tools/reflexBot";
-import { materials, tuning } from "./helpers";
+import { materials, panels, tuning } from "./helpers";
 
 const HARD_BOUND_TICKS = 420 * 120; // §2.9.1 p95 bound as a per-match ceiling here
 
@@ -19,8 +19,8 @@ describe("batch runner building blocks", () => {
     const raw = JSON.parse(
       readFileSync(new URL("../src/config/data/levels/dev-flat.json", import.meta.url), "utf-8"),
     );
-    const { level } = validateLevelJson("dev-flat.json", raw, materials);
-    const config = resolveMatchConfig(level!, tuning, materials, "versus");
+    const { level } = validateLevelJson("dev-flat.json", raw, materials, panels);
+    const config = resolveMatchConfig(level!, tuning, materials, panels, "versus");
     const state = createMatch(config, seed);
     const left = new ReflexBot("left", seed);
     const right = new ReflexBot("right", seed);
@@ -41,8 +41,8 @@ describe("batch runner building blocks", () => {
     const raw = JSON.parse(
       readFileSync(new URL("../src/config/data/levels/dev-flat.json", import.meta.url), "utf-8"),
     );
-    const { level } = validateLevelJson("dev-flat.json", raw, materials);
-    const config = resolveMatchConfig(level!, tuning, materials, "versus");
+    const { level } = validateLevelJson("dev-flat.json", raw, materials, panels);
+    const config = resolveMatchConfig(level!, tuning, materials, panels, "versus");
     const run = (): { ticks: number; winner: string } => {
       const state = createMatch(config, 4242);
       const left = new ReflexBot("left", 4242);

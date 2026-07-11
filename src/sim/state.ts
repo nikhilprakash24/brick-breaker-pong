@@ -168,11 +168,21 @@ export interface ArenaSegment {
   objectIndex: number; // → wallObjects[] for lever/panel/oneWay, else -1
 }
 
+/** Slope elevation profile for field mode (§3.8.4); null on non-slope arenas. */
+export interface SlopeProfile {
+  mode: "reflection_only" | "field";
+  rampStartX: number;
+  plateauStartX: number;
+  plateauEndX: number;
+  rampEndX: number;
+  slopeHeight: number; // H
+}
+
 export interface ArenaRuntime {
   segments: ArenaSegment[];
   topVerts: Vec2[];
   bottomVerts: Vec2[];
-  slope: { enabled: boolean; mode: "reflection-only" | "field" } | null;
+  slope: SlopeProfile | null;
 }
 
 export interface WallObjectState {
@@ -181,8 +191,9 @@ export interface WallObjectState {
   segmentId: number;
   cooldownTicks: number;
   cooldownTotal: number;
-  panelDir?: Vec2;
-  flipped?: boolean;
+  panelDir?: Vec2; // panel: unit direction (color-resolved)
+  flipped?: boolean; // panel_flip powerup (Phase 5)
+  blockNormal?: Vec2; // oneWay: reflect iff vel·blockNormal < 0 (§3.3)
 }
 
 /** MatchStatsSummary accumulator — sim-tracked so rules.ts can embed the

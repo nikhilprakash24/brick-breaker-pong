@@ -9,17 +9,30 @@
  * opponent blocks (P4), powerup pools (P5), worlds.json manifest (P6).
  */
 
-import type { MatchConfig, MaterialDef, TuningTable } from "./types";
+import type {
+  MatchConfig,
+  MaterialDef,
+  PanelColorMap,
+  ResolvedArena,
+  ResolvedObject,
+  TuningTable,
+} from "./types";
 import {
   bool,
   enumOf,
   int,
   ms,
+  num,
   validateObject,
   type FieldSpec,
   type ObjectSchema,
   type ValidationError,
 } from "./validate";
+import {
+  expandArenaProfile,
+  validateArenaGeometry,
+  type ArenaProfileInput,
+} from "../sim/geometry";
 
 export interface LevelDef {
   schema_version: number;
@@ -39,6 +52,8 @@ export interface LevelDef {
     left: { layers: string[][] }; // expanded: layers[0] = frontmost
     right: { layers: string[][] };
   };
+  arena: ResolvedArena; // expanded + validated
+  objects: ResolvedObject[];
 }
 
 const nonEmptyString: FieldSpec = (v, ctx) => {
@@ -169,11 +184,142 @@ const LEVEL_RULES_SCHEMA: ObjectSchema = {
   fixed_seed: nullableInt,
 };
 
-/** Validate one level file (pure; §7.9 subset for Phase 2). */
+const passThrough: FieldSpec = (v) => v;
+
+const OBJECT_MIN_SEPARATION = 8; // u (§2.4.4)
+const MAX_OBJECTS = 6;
+const MAX_TRIGGERABLE = 4;
+
+function polylineLength(verts: { x: number; y: number }[]): number {
+  let total = 0;
+  for (let i = 0; i + 1 < verts.length; i++) {
+    total += Math.hypot(verts[i + 1]!.x - verts[i]!.x, verts[i + 1]!.y - verts[i]!.y);
+  }
+  return total;
+}
+
+/** Validate the arena def + placed objects (§3.8.1, §2.4.4, §7.9). */
+function validateArenaAndObjects(
+  fileName: string,
+  rawArena: unknown,
+  rawObjects: unknown,
+  panels: PanelColorMap,
+  errors: ValidationError[],
+): { arena: ResolvedArena; objects: ResolvedObject[] } | undefined {
+  if (typeof rawArena !== "object" || rawArena === null) {
+    errors.push({ file: fileName, path: "arena", message: "expected an arena object" });
+    return undefined;
+  }
+  const arena = expandArenaProfile(rawArena as ArenaProfileInput);
+  for (const geoErr of validateArenaGeometry(arena)) {
+    errors.push({ file: fileName, path: "arena", message: geoErr });
+  }
+
+  const objects: ResolvedObject[] = [];
+  if (rawObjects !== undefined) {
+    if (!Array.isArray(rawObjects)) {
+      errors.push({ file: fileName, path: "objects", message: "expected an array of objects" });
+    } else {
+      if (rawObjects.length > MAX_OBJECTS) {
+        errors.push({
+          file: fileName,
+          path: "objects",
+          message: `${rawObjects.length} objects; max is ${MAX_OBJECTS} (SPEC-2.10)`,
+        });
+      }
+      rawObjects.forEach((rawObj, i) => {
+        const obj = validateOneObject(fileName, `objects[${i}]`, rawObj, panels, errors);
+        if (obj) objects.push(obj);
+      });
+      const triggerable = objects.filter((o) => o.kind !== "oneWay").length;
+      if (triggerable > MAX_TRIGGERABLE) {
+        errors.push({
+          file: fileName,
+          path: "objects",
+          message: `${triggerable} triggerable objects; max is ${MAX_TRIGGERABLE} (SPEC-2.10)`,
+        });
+      }
+      // Minimum separation between objects on the same boundary (§2.4.4).
+      for (const boundary of ["top", "bottom"] as const) {
+        const verts = boundary === "top" ? arena.topVerts : arena.bottomVerts;
+        const total = polylineLength(verts);
+        const placed = objects
+          .filter((o) => o.boundary === boundary)
+          .map((o) => ({ start: o.t * total - o.length / 2, end: o.t * total + o.length / 2 }))
+          .sort((a, b) => a.start - b.start);
+        for (let i = 1; i < placed.length; i++) {
+          if (placed[i]!.start - placed[i - 1]!.end < OBJECT_MIN_SEPARATION) {
+            errors.push({
+              file: fileName,
+              path: "objects",
+              message: `two ${boundary} objects are closer than the ${OBJECT_MIN_SEPARATION} u minimum separation`,
+            });
+          }
+        }
+      }
+    }
+  }
+  return { arena, objects };
+}
+
+function validateOneObject(
+  fileName: string,
+  path: string,
+  raw: unknown,
+  panels: PanelColorMap,
+  errors: ValidationError[],
+): ResolvedObject | undefined {
+  if (typeof raw !== "object" || raw === null) {
+    errors.push({ file: fileName, path, message: "expected an object" });
+    return undefined;
+  }
+  const o = raw as Record<string, unknown>;
+  const before = errors.length;
+  const type = enumOf("lever", "panel", "one_way")(o.type, { file: fileName, path: `${path}.type`, errors });
+  const boundary = enumOf("top", "bottom")(o.boundary, { file: fileName, path: `${path}.boundary`, errors });
+  const t = num(0, 1)(o.t, { file: fileName, path: `${path}.t`, errors });
+  const length = num(20, 200)(o.length, { file: fileName, path: `${path}.length`, errors });
+  if (errors.length > before) return undefined;
+
+  const kind = type === "one_way" ? "oneWay" : (type as "lever" | "panel");
+  const resolved: ResolvedObject = {
+    kind,
+    boundary: boundary as "top" | "bottom",
+    t: t as number,
+    length: length as number,
+    cooldownTicks: 0,
+  };
+  if (kind === "panel") {
+    const color = o.color;
+    if (typeof color !== "string" || !(color in panels)) {
+      errors.push({ file: fileName, path: `${path}.color`, message: `unknown panel color ${JSON.stringify(color)}` });
+      return undefined;
+    }
+    resolved.color = color;
+  }
+  if (kind === "oneWay") {
+    const pd = enumOf("left_to_right", "right_to_left")(o.pass_dir, {
+      file: fileName,
+      path: `${path}.pass_dir`,
+      errors,
+    });
+    if (pd === undefined) return undefined;
+    resolved.passDir = pd as "left_to_right" | "right_to_left";
+  }
+  if (kind === "lever" || kind === "panel") {
+    const cd = ms(500, 6000)(o.cooldown_ms, { file: fileName, path: `${path}.cooldown_ms`, errors });
+    if (cd === undefined) return undefined;
+    resolved.cooldownTicks = cd as number;
+  }
+  return resolved;
+}
+
+/** Validate one level file (pure; §7.9). Panels needed for panel color refs. */
 export function validateLevelJson(
   fileName: string,
   raw: unknown,
   materials: Record<string, MaterialDef>,
+  panels: PanelColorMap,
 ): { level?: LevelDef; errors: ValidationError[] } {
   const errors: ValidationError[] = [];
   const cleaned = validateObject(
@@ -187,9 +333,11 @@ export function validateLevelJson(
       rules: LEVEL_RULES_SCHEMA,
       walls: {
         lane_count: int(4, 24),
-        left: { layers: (v) => v }, // expanded below with grammar-aware errors
-        right: { layers: (v) => v },
+        left: { layers: passThrough }, // expanded below with grammar-aware errors
+        right: { layers: passThrough },
       },
+      arena: passThrough, // validated + expanded below
+      objects: passThrough,
     },
     errors,
   );
@@ -197,8 +345,12 @@ export function validateLevelJson(
 
   const level = cleaned as unknown as LevelDef & {
     walls: { lane_count: number; left: { layers: unknown }; right: { layers: unknown } };
+    arena: unknown;
+    objects: unknown;
   };
   const laneCount = level.walls.lane_count;
+
+  const arenaResult = validateArenaAndObjects(fileName, level.arena, level.objects, panels, errors);
 
   for (const side of ["left", "right"] as const) {
     const layersRaw = level.walls[side].layers;
@@ -237,7 +389,9 @@ export function validateLevelJson(
     });
   }
 
-  if (errors.length > 0) return { errors };
+  if (errors.length > 0 || !arenaResult) return { errors };
+  level.arena = arenaResult.arena;
+  level.objects = arenaResult.objects;
   return { level: level as LevelDef, errors };
 }
 
@@ -250,6 +404,7 @@ export function resolveMatchConfig(
   level: LevelDef,
   tuning: TuningTable,
   materials: Record<string, MaterialDef>,
+  panels: PanelColorMap,
   mode: "story" | "versus",
 ): MatchConfig {
   return {
@@ -260,6 +415,13 @@ export function resolveMatchConfig(
       left: { layers: level.walls.left.layers.map((l) => [...l]) },
       right: { layers: level.walls.right.layers.map((l) => [...l]) },
     },
+    arena: {
+      topVerts: level.arena.topVerts.map((p) => ({ ...p })),
+      bottomVerts: level.arena.bottomVerts.map((p) => ({ ...p })),
+      slope: level.arena.slope ? { ...level.arena.slope } : null,
+    },
+    objects: level.objects.map((o) => ({ ...o })),
+    panels,
     rules: {
       lives: { ...level.rules.lives },
       rebuild_on_life_lost: level.rules.rebuild_on_life_lost,

@@ -142,6 +142,34 @@ export interface MaterialDef {
   tier: number;
 }
 
+/** Global color→direction map for panels (panels.json, SPEC-2.4 §5.2).
+ *  Immutable across the whole game (DECIDED consistency rule). */
+export interface PanelColorDef {
+  glyph: string;
+  /** unit direction vector, y-down */
+  dir: { x: number; y: number };
+}
+export type PanelColorMap = Record<string, PanelColorDef>;
+
+/** Resolved arena for a match: expanded boundary polylines + slope profile.
+ *  Baked into collider segments by geometry.ts at createMatch. */
+export interface ResolvedArena {
+  topVerts: { x: number; y: number }[];
+  bottomVerts: { x: number; y: number }[];
+  slope: import("../sim/state").SlopeProfile | null;
+}
+
+/** Resolved wall object placed on a boundary (§7.3 objects → §3.9). */
+export interface ResolvedObject {
+  kind: "lever" | "panel" | "oneWay";
+  boundary: "top" | "bottom";
+  t: number; // arc-length fraction [0,1]
+  length: number; // u
+  cooldownTicks: number; // 0 for oneWay
+  color?: string; // panel: key into PanelColorMap
+  passDir?: "left_to_right" | "right_to_left"; // oneWay
+}
+
 /**
  * Boot-time registry (SPEC-3.1 §1.3). Grows as config file families land:
  * levels (Phase 2), opponents (Phase 4), powerups (Phase 5), …
@@ -149,6 +177,7 @@ export interface MaterialDef {
 export interface ConfigRegistry {
   tuning: TuningTable;
   materials: Record<string, MaterialDef>;
+  panels: PanelColorMap;
   /** LevelId → validated level (worlds.json manifest arrives in Phase 6). */
   levels: Record<string, import("./levels").LevelDef>;
 }
@@ -167,6 +196,9 @@ export interface MatchConfig {
   materials: Record<string, MaterialDef>;
   laneCount: number;
   walls: { left: ResolvedWallDef; right: ResolvedWallDef };
+  arena: ResolvedArena;
+  objects: ResolvedObject[];
+  panels: PanelColorMap;
   rules: {
     lives: { left: number; right: number };
     rebuild_on_life_lost: "none" | "full" | "breach_fill";

@@ -21,5 +21,10 @@
         "hay*4 obsidian*1 hay*2 obsidian*1 hay*4 | mirror-check"
       ]
     }
-  }
+  },
+  "arena": { "profile": "flat" },
+  "objects": [
+    { "type": "lever", "boundary": "top", "t": 0.35, "length": 40, "cooldown_ms": 2000 },
+    { "type": "lever", "boundary": "bottom", "t": 0.65, "length": 40, "cooldown_ms": 2000 }
+  ]
 }

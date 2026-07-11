@@ -179,6 +179,21 @@ describe("match FSM — lives & crossings (M3', M5, M6, M7, M10)", () => {
     expect(events.some((e) => e.type === "MatchPhaseChanged")).toBe(true);
   });
 
+  it("stall soft-timeout homes each ball toward the nearest paddle, magnitude preserved (M11, R-5.4)", () => {
+    const state = createMatch(testMatchConfig({ rules: { first_receiver: "right" } }), 5);
+    state.phase = { kind: "rally" };
+    // Ball high in the court moving upward, away from both paddles (at y=360
+    // below it); the direction-only nudge bends its heading downward toward
+    // the nearer paddle while preserving |v|.
+    const b = injectBall(state, 400, 200, 300, -120);
+    const vyBefore = b.vel.y;
+    const speedBefore = Math.hypot(b.vel.x, b.vel.y);
+    state.rally.lastTouchTick = state.tick - tuning.rules.stall_soft_timeout - 1;
+    stepMatch(state, neutralInputs());
+    expect(b.vel.y).toBeGreaterThan(vyBefore); // bent toward the paddles below
+    expect(Math.hypot(b.vel.x, b.vel.y)).toBeCloseTo(speedBefore, 4); // direction-only
+  });
+
   it("stall hard-timeout voids the exchange: balls despawn, no life lost (M11, R-5.4)", () => {
     const state = createMatch(testMatchConfig({ rules: { first_receiver: "right" } }), 5);
     state.phase = { kind: "rally" };
