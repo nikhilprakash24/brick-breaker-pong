@@ -18,6 +18,7 @@ import type {
 } from "../src/config/types";
 import {
   resolveOpponent,
+  resolveTierPure,
   validateOpponentsJson,
   type OpponentsTable,
   type ResolvedOpponent,
@@ -59,6 +60,11 @@ export function opponent(archetype: string, tier: number): ResolvedOpponent {
   return resolveOpponent({ tier, archetype }, opponents, {
     paddleHalfHeight: tuning.paddle.paddle_half_height,
   });
+}
+
+/** A tier's pure baseline (standard body, no archetype) — isolates tier/brain. */
+export function tierPure(tier: number): ResolvedOpponent {
+  return resolveTierPure(tier, opponents, { paddleHalfHeight: tuning.paddle.paddle_half_height });
 }
 
 /** A MatchConfig with the given opponent's physical paddle on the RIGHT. */

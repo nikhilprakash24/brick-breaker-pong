@@ -16,7 +16,7 @@ import { rngRange } from "../rng";
 import type { Targeting } from "../../config/opponents";
 import { laneHeight } from "../wall";
 import { ARENA_W } from "../geometry";
-import { predictReturnLane } from "./predict";
+import { predictReturnFlight, predictReturnLane } from "./predict";
 
 const DEG = Math.PI / 180;
 
@@ -160,13 +160,19 @@ function focusTargetLane(
     }
   }
   // Retarget hysteresis (§2.7.3): keep the drill unless the current target
-  // reached 0 HP or a clearly softer lane (≥ switch_delta HP lower) appeared.
+  // reached 0 HP or ANY lane appeared ≥ switch_delta HP softer. The trigger
+  // is measured against the true minimum-HP lane, not the persistence-biased
+  // argmax (which can equal `cur` and mask a softer lane) — the argmax's own
+  // w_persist bonus must not suppress the spec's softer-lane switch.
   const cur = mem.focusTarget;
   if (cur !== null && cur >= 0 && cur < oppWall.laneCount) {
     const curHp = laneHpSum(oppWall, cur);
-    const bestHp = laneHpSum(oppWall, best);
+    let minHp = Infinity;
+    for (let lane = 0; lane < oppWall.laneCount; lane++) {
+      minHp = Math.min(minHp, laneHpSum(oppWall, lane));
+    }
     const delta = state.config.tuning.ai.ai_focus_switch_delta;
-    if (curHp > 0 && !(bestHp <= curHp - delta)) return cur;
+    if (curHp > 0 && !(minHp <= curHp - delta)) return cur;
   }
   mem.focusTarget = best;
   return best;
@@ -206,10 +212,12 @@ export function chooseReturnOffset(
  * (AIM_CANDIDATES predicts), evaluated once per committed hit by the
  * controller (cached), not per tick. Deviates from §9.4.4's "no search"
  * where that rule cannot satisfy §2.9.2; geometric is the fallback.
- * 0.125-offset steps ≈ 7° of steering — fine enough to pick a lane after
- * one or two wall bounces without ballooning the predict budget.
+ * 0.2-offset steps ≈ 11° of steering — fine enough to pick a lane after a
+ * wall bounce while keeping the per-commit predict budget bounded (11
+ * candidates × a ~3 s horizon, run once per committed hit — not per tick).
  */
-const AIM_CANDIDATES = Array.from({ length: 17 }, (_, i) => -1 + i * 0.125);
+const AIM_CANDIDATES = Array.from({ length: 11 }, (_, i) => -1 + i * 0.2);
+const AIM_PREDICT_TICKS = 360;
 
 function aimAtLane(
   state: MatchState,
@@ -222,7 +230,7 @@ function aimAtLane(
   let best = geometric;
   let bestDist = Infinity;
   for (const off of [geometric, ...AIM_CANDIDATES]) {
-    const lane = predictReturnLane(state, side, contactY, offsetToVel(state, side, off, ballSpeed), 600);
+    const lane = predictReturnLane(state, side, contactY, offsetToVel(state, side, off, ballSpeed), AIM_PREDICT_TICKS);
     if (lane === null) continue; // this offset flies through a breach — not a drill
     const dist = Math.abs(lane - targetLane);
     if (dist < bestDist || (dist === bestDist && Math.abs(off) < Math.abs(best))) {
@@ -297,7 +305,7 @@ function aimThroughBreach(
 ): number {
   const laneH = laneHeight(state.sides[otherSide(side)].wall);
   for (const off of [geometric, ...AIM_CANDIDATES]) {
-    const lane = predictReturnLane(state, side, contactY, offsetToVel(state, side, off, ballSpeed), 600);
+    const lane = predictReturnLane(state, side, contactY, offsetToVel(state, side, off, ballSpeed), AIM_PREDICT_TICKS);
     // null (flew through a hole) whose geometric target was the breach — good.
     if (lane === null) {
       // Confirm the straight-line aim pointed at the breach band, not elsewhere.
@@ -327,22 +335,24 @@ export function verifyReturn(
 }
 
 function denialOffset(state: MatchState, side: Side, contactY: number, ballSpeed: number): number {
-  // Evaluate the 3 candidate offsets; choose the one maximizing time-to-return
-  // to own paddle plane (buys repositioning time). Approximated by minimizing
-  // |vx| (a flatter return travels the court slower back), then verified by
-  // predicting the round trip length.
+  // Evaluate the 3 candidate offsets by PREDICTING each return from the actual
+  // contact point (§9.4.3 "3-candidate predict comparison"): score by the
+  // predicted flight length (more ticks to the opponent wall = more time to
+  // reposition), and prefer returns that strike a brick over ones that fly
+  // clean through a breach (an unpressured, wasted return).
   const candidates = state.config.tuning.ai.ai_denial_candidates;
   let best = candidates[0]!;
-  let bestTime = -Infinity;
+  let bestScore = -Infinity;
   for (const off of candidates) {
     const vel = offsetToVel(state, side, off, ballSpeed);
-    // Time to return ≈ court width / |vx| (flatter = slower return).
-    const t = Math.abs(vel.x) < 1e-6 ? Infinity : 1 / Math.abs(vel.x);
-    if (t > bestTime) {
-      bestTime = t;
+    const res = predictReturnFlight(state, side, contactY, vel);
+    // Flight ticks dominate; a clean pass through a breach (no brick) is a
+    // slight demerit — it applies no pressure and hands tempo back.
+    const score = res.ticks - (res.hitBrick ? 0 : 40);
+    if (score > bestScore) {
+      bestScore = score;
       best = off;
     }
-    void contactY;
   }
   return best;
 }

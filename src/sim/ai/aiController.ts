@@ -80,9 +80,10 @@ export class AiController implements InputController {
         const contactY = (plan.interceptY ?? p.yCenter) + track.noise;
         const ball = state.balls.find((b) => b.id === plan.ballId);
         const speed = ball ? Math.hypot(ball.vel.x, ball.vel.y) : state.config.tuning.physics.ball_base_speed;
-        // Choose the aim once per commit and refresh at the replan cadence —
-        // the bounce-aware search (predicts) must not run every tick.
-        if (track.aimOffset === null || state.tick - track.aimTick >= this.replanTicks) {
+        // Choose the aim ONCE per commit — the bounce-aware search runs a
+        // handful of predicts and must not repeat every tick/replan. The
+        // target lane has its own hysteresis, so a per-commit choice is stable.
+        if (track.aimOffset === null) {
           track.aimOffset = chooseReturnOffset(
             this.opponent.targeting,
             state,
@@ -114,13 +115,18 @@ export class AiController implements InputController {
   // ── perception ──────────────────────────────────────────────────────────────
 
   private updatePlans(state: MatchState, side: Side): void {
-    let signChanged = false;
+    // Replan on: a ball's vx sign flip (opponent/wall hit) OR the ball SET
+    // changing (spawn/despawn) — otherwise a mid-rally despawn would leave a
+    // stale plan for a ball that no longer exists until the throttle expires.
+    const liveIds = new Set(state.balls.map((b) => b.id));
+    let dirty = liveIds.size !== this.vxSign.size;
     for (const b of state.balls) {
       const s = Math.sign(b.vel.x);
-      if (this.vxSign.get(b.id) !== s) signChanged = true;
+      if (this.vxSign.get(b.id) !== s) dirty = true;
       this.vxSign.set(b.id, s);
     }
-    if (!signChanged && state.tick - this.lastPlanTick < this.replanTicks) return;
+    for (const id of [...this.vxSign.keys()]) if (!liveIds.has(id)) this.vxSign.delete(id);
+    if (!dirty && state.tick - this.lastPlanTick < this.replanTicks) return;
     this.lastPlanTick = state.tick;
     this.plans = state.balls
       .map((b) => predictBall(state, b.id, side, state.config.tuning.ai.ai_predict_max_ticks))
@@ -129,7 +135,10 @@ export class AiController implements InputController {
 
   /** Track newly-inbound balls (fresh noise per opponent hit / serve). */
   private updateInbound(state: MatchState): void {
-    const live = new Set(this.plans.map((p) => p.ballId));
+    // Prune by BOTH the live ball set and the current plans, so a despawned
+    // ball can never keep an inbound track alive.
+    const liveBalls = new Set(state.balls.map((b) => b.id));
+    const live = new Set(this.plans.map((p) => p.ballId).filter((id) => liveBalls.has(id)));
     for (const id of [...this.inbound.keys()]) if (!live.has(id)) this.inbound.delete(id);
     for (const plan of this.plans) {
       if (!this.inbound.has(plan.ballId)) {

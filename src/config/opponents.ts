@@ -178,6 +178,28 @@ function validateArchetype(file: string, path: string, def: unknown, errors: Val
   }
   if (d.targeting !== undefined) enumField(file, `${path}.targeting`, d.targeting, TARGETINGS, errors);
   if (d.station !== undefined) enumField(file, `${path}.station`, d.station, STATIONS, errors);
+  // Range-check the same perception/placement/powerup fields the tier
+  // validator checks, so a malformed archetype value can't slip through to
+  // resolveOpponent as NaN/out-of-range (a type-invalid mult would poison
+  // aim noise → NaN paddle target).
+  if (d.perception !== undefined) {
+    const p = (d.perception ?? {}) as Record<string, unknown>;
+    if (p.reaction_ms !== undefined) num(50, 600)(p.reaction_ms, { file, path: `${path}.perception.reaction_ms`, errors });
+    if (p.aim_noise_u !== undefined) num(0, 60)(p.aim_noise_u, { file, path: `${path}.perception.aim_noise_u`, errors });
+    if (p.reaction_ms_delta !== undefined) num(-200, 200)(p.reaction_ms_delta, { file, path: `${path}.perception.reaction_ms_delta`, errors });
+    if (p.aim_noise_mult !== undefined) num(0.5, 2)(p.aim_noise_mult, { file, path: `${path}.perception.aim_noise_mult`, errors });
+    if (p.replan_ms !== undefined) num(50, 800)(p.replan_ms, { file, path: `${path}.perception.replan_ms`, errors });
+  }
+  if (d.placement !== undefined) {
+    const pl = (d.placement ?? {}) as Record<string, unknown>;
+    if (pl.style !== undefined) enumField(file, `${path}.placement.style`, pl.style, STYLES, errors);
+    if (pl.react_ms !== undefined) num(200, 2000)(pl.react_ms, { file, path: `${path}.placement.react_ms`, errors });
+  }
+  if (d.powerup_use !== undefined) {
+    const pu = (d.powerup_use ?? {}) as Record<string, unknown>;
+    if (pu.style !== undefined) enumField(file, `${path}.powerup_use.style`, pu.style, PU_STYLES, errors);
+    if (pu.min_hold_ms !== undefined) num(100, 4000)(pu.min_hold_ms, { file, path: `${path}.powerup_use.min_hold_ms`, errors });
+  }
 }
 
 // ── merge (tier → archetype → override) ───────────────────────────────────────
@@ -267,6 +289,10 @@ export function resolveOpponent(
     station: arch.station ?? tier.station,
     placement: { style: placementStyle, reactMs: placementReactMs },
     powerup: { style: powerup.style, minHoldMs: powerup.min_hold_ms },
+    // DEFERRED to Phase 6 (trickster W2 boss): the per-serve offset-sign flip
+    // (§2.7.5/§2.7.6) is a sim-side serve-time paddle-zone rebuild, landing
+    // with the not-yet-authored boss level. Resolved here; no shipped level
+    // uses trickster, so the field is inert until then (tracked, not silent).
     offsetFlip: arch.paddle.offset_flip ?? false,
   };
 }

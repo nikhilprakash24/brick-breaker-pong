@@ -31,10 +31,15 @@ function paddlePlaneX(state: MatchState, side: Side): number {
   return side === "left" ? t.paddle_plane_x_left : t.paddle_plane_x_right;
 }
 
-/** Slope field increment (mirrors ball.ts::applySlopeField for one ball). */
-function applyFieldTick(state: MatchState, vel: Vec2, posX: number): void {
+/** Slope field increment — mirrors ball.ts::applySlopeField for one ball,
+ *  INCLUDING the trailing min-|vx| clamp, so field-mode prediction matches
+ *  the live sim (else predicted vx can decay/reverse where the real ball is
+ *  held at the floor and keeps crawling — a confirmed divergence). `clampBall`
+ *  shares the same vel object being integrated. */
+function applyFieldTick(state: MatchState, clampBall: BallState, posX: number): void {
   const slope = state.arena.slope;
   if (!slope || slope.mode !== "field") return;
+  const vel = clampBall.vel;
   const t = state.config.tuning.physics;
   const g = slopeGradient(slope, posX);
   if (g !== 0) vel.x += -t.slope_accel * g * DT_S;
@@ -48,6 +53,7 @@ function applyFieldTick(state: MatchState, vel: Vec2, posX: number): void {
       vel.y *= s;
     }
   }
+  clampMinVx(clampBall, state.config.tuning);
 }
 
 interface SimResult {
@@ -82,7 +88,7 @@ function simulate(
   const clampBall = { ...ball, pos, vel } as BallState;
 
   for (let tick = 1; tick <= maxTicks; tick++) {
-    applyFieldTick(state, vel, pos.x);
+    applyFieldTick(state, clampBall, pos.x);
     let remaining = 1.0;
 
     for (let bounce = 0; bounce < maxBounces; bounce++) {
@@ -240,6 +246,38 @@ export function predictReturnLane(
   const opponent: Side = side === "left" ? "right" : "left";
   if (res.brickHit && res.brickHit.side === opponent) return res.brickHit.lane;
   return null;
+}
+
+/**
+ * Predict a hypothetical return's FLIGHT: how many ticks until it first
+ * strikes the opponent wall (or exits), and whether it hit a brick at all
+ * (§9.4.3 denial comparison). More ticks ⇒ more repositioning time.
+ */
+export function predictReturnFlight(
+  state: Readonly<MatchState>,
+  side: Side,
+  contactY: number,
+  vel: Vec2,
+): { ticks: number; hitBrick: boolean } {
+  const s = state as MatchState;
+  const planeX = paddlePlaneX(s, side);
+  const ghost: BallState = {
+    id: -1,
+    pos: { x: planeX, y: contactY },
+    vel: { x: vel.x, y: vel.y },
+    radius: s.config.tuning.physics.ball_radius,
+    speedMult: 1,
+    damage: 1,
+    heavyHitsLeft: 0,
+    curveAccel: 0,
+    stuckToPaddle: null,
+    lastHitBy: side,
+    lastHorizontalDir: Math.sign(vel.x) === 0 ? 1 : (Math.sign(vel.x) as 1 | -1),
+    justTeleported: false,
+  };
+  const res = simulate(s, ghost, 360, { planeX: null, planeDir: 1, path: null });
+  const opponent: Side = side === "left" ? "right" : "left";
+  return { ticks: res.endTick, hitBrick: res.brickHit?.side === opponent };
 }
 
 /** Cheap trajectory sampler for the debug overlay only. */

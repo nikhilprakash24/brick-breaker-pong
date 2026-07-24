@@ -207,6 +207,24 @@ function validateOpponentBlock(
   } else if (opponents && !(o.archetype in opponents.archetypes)) {
     errors.push({ file, path: "opponent.archetype", message: `unknown archetype ${JSON.stringify(o.archetype)}` });
   }
+  // Per-level overrides must obey the SAME clamps as tiers/archetypes — a
+  // level cannot buy the AI speed past the GR2-10 floor (720/speed ≥ 1.5 s ⇒
+  // speed ≤ 480) or a court-covering paddle. "Difficulty is behaviour, never
+  // cheating" (§2.7). Overrides feed resolveOpponent unclamped, so validate here.
+  if (o.overrides !== undefined) {
+    if (typeof o.overrides !== "object" || o.overrides === null) {
+      errors.push({ file, path: "opponent.overrides", message: "expected an overrides object" });
+    } else {
+      const ov = o.overrides as Record<string, unknown>;
+      const clamp = (key: string, min: number, max: number): void => {
+        if (ov[key] !== undefined) num(min, max)(ov[key], { file, path: `opponent.overrides.${key}`, errors });
+      };
+      clamp("aim_noise_u", 0, 60);
+      clamp("reaction_ms", 50, 600);
+      clamp("speed", 200, 480); // GR2-10 human-parity + traversal floor
+      clamp("half_height", 30, 90);
+    }
+  }
 }
 
 const OBJECT_MIN_SEPARATION = 8; // u (§2.4.4)
