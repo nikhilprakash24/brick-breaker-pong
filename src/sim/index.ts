@@ -30,20 +30,65 @@ export type { GameEvent } from "./events";
 export type { MatchState, Side } from "./state";
 export { simDiagnostics } from "./ball";
 
-function makePaddle(side: Side, config: MatchConfig): PaddleState {
+/**
+ * Build a side's paddles from its layout (§7.4.3). Single paddle → one
+ * offset-shifted zone; count 2 (split opponent) → two zones straddling a
+ * permanently-uncovered center gap of `splitGap`.
+ */
+function makePaddles(side: Side, config: MatchConfig): PaddleState[] {
   const t = config.tuning.paddle;
   const x = side === "left" ? t.paddle_plane_x_left : t.paddle_plane_x_right;
-  const halfHeight = t.paddle_half_height;
-  // Boundaries are flat at paddle x (§3.8.3) — zone constant per match.
-  return {
-    index: 0,
-    yCenter: ARENA_H / 2, // R-1.5: spawn at travel-range center
-    halfHeight,
-    x,
+  const layout = config.paddles?.[side] ?? {
+    count: 1 as const,
+    halfHeight: t.paddle_half_height,
     speed: t.paddle_speed,
-    zone: { yMin: halfHeight, yMax: ARENA_H - halfHeight },
-    stickyArmed: false,
+    offset: 0,
+    splitGap: 0,
   };
+  const hh = layout.halfHeight;
+  const topLimit = hh;
+  const botLimit = ARENA_H - hh; // boundaries flat at paddle x (§3.8.3)
+  const midY = ARENA_H / 2;
+
+  if (layout.count === 2) {
+    const gap = layout.splitGap;
+    return [
+      {
+        index: 0,
+        yCenter: (topLimit + (midY - gap / 2 - hh)) / 2,
+        halfHeight: hh,
+        x,
+        speed: layout.speed,
+        zone: { yMin: topLimit, yMax: Math.max(topLimit, midY - gap / 2 - hh) },
+        stickyArmed: false,
+      },
+      {
+        index: 1,
+        yCenter: ((midY + gap / 2 + hh) + botLimit) / 2,
+        halfHeight: hh,
+        x,
+        speed: layout.speed,
+        zone: { yMin: Math.min(botLimit, midY + gap / 2 + hh), yMax: botLimit },
+        stickyArmed: false,
+      },
+    ];
+  }
+
+  // Single paddle: offset shifts the reachable zone, clamped to court, so a
+  // nonzero offset leaves a standing gap on the shifted-away side (GDD §8).
+  const yMin = Math.max(topLimit, Math.min(botLimit, topLimit + layout.offset));
+  const yMax = Math.max(topLimit, Math.min(botLimit, botLimit + layout.offset));
+  return [
+    {
+      index: 0,
+      yCenter: (yMin + yMax) / 2,
+      halfHeight: hh,
+      x,
+      speed: layout.speed,
+      zone: { yMin, yMax },
+      stickyArmed: false,
+    },
+  ];
 }
 
 function makeSide(side: Side, config: MatchConfig): SideState {
@@ -55,7 +100,7 @@ function makeSide(side: Side, config: MatchConfig): SideState {
   );
   return {
     lives: config.rules.lives[side],
-    paddles: [makePaddle(side, config)],
+    paddles: makePaddles(side, config),
     wall,
     slots: Array.from({ length: config.tuning.paddle.slot_count }, () => ({
       powerupId: null,

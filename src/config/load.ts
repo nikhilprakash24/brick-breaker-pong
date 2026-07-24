@@ -6,6 +6,7 @@
 
 import type { ConfigRegistry, MaterialDef, PanelColorMap, TuningTable } from "./types";
 import { validateLevelJson, type LevelDef } from "./levels";
+import { validateOpponentsJson } from "./opponents";
 import {
   bool,
   ConfigError,
@@ -327,21 +328,29 @@ const LEVEL_FILES = [
   "dev-angular.json",
   "dev-narrowing.json",
   "dev-zigzag.json",
+  "dev-twins.json",
 ];
 
 export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
   const errors: ValidationError[] = [];
-  const [rawTuning, rawMaterials, rawPanels, ...rawLevels] = await Promise.all([
+  const [rawTuning, rawMaterials, rawPanels, rawOpponents, ...rawLevels] = await Promise.all([
     fetchJson(baseUrl, "tuning.json", errors),
     fetchJson(baseUrl, "materials.json", errors),
     fetchJson(baseUrl, "panels.json", errors),
+    fetchJson(baseUrl, "opponents.json", errors),
     ...LEVEL_FILES.map((f) => fetchJson(baseUrl, "levels/" + f, errors)),
   ]);
   if (errors.length > 0) throw new ConfigError(errors);
   const tuningResult = validateTuningJson(rawTuning);
   const materialsResult = validateMaterialsJson(rawMaterials);
   const panelsResult = validatePanelsJson(rawPanels);
-  const all = [...tuningResult.errors, ...materialsResult.errors, ...panelsResult.errors];
+  const opponentsResult = validateOpponentsJson(rawOpponents);
+  const all = [
+    ...tuningResult.errors,
+    ...materialsResult.errors,
+    ...panelsResult.errors,
+    ...opponentsResult.errors,
+  ];
   const levels: Record<string, LevelDef> = {};
   if (materialsResult.materials && panelsResult.panels) {
     rawLevels.forEach((raw, i) => {
@@ -351,6 +360,7 @@ export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
         raw,
         materialsResult.materials!,
         panelsResult.panels!,
+        opponentsResult.opponents,
       );
       all.push(...levelErrors);
       if (level) {
@@ -361,13 +371,20 @@ export async function loadConfig(baseUrl: string): Promise<ConfigRegistry> {
       }
     });
   }
-  if (all.length > 0 || !tuningResult.tuning || !materialsResult.materials || !panelsResult.panels) {
+  if (
+    all.length > 0 ||
+    !tuningResult.tuning ||
+    !materialsResult.materials ||
+    !panelsResult.panels ||
+    !opponentsResult.opponents
+  ) {
     throw new ConfigError(all);
   }
   return deepFreeze({
     tuning: tuningResult.tuning,
     materials: materialsResult.materials,
     panels: panelsResult.panels,
+    opponents: opponentsResult.opponents,
     levels,
   });
 }

@@ -16,6 +16,12 @@ import type {
   PanelColorMap,
   TuningTable,
 } from "../src/config/types";
+import {
+  resolveOpponent,
+  validateOpponentsJson,
+  type OpponentsTable,
+  type ResolvedOpponent,
+} from "../src/config/opponents";
 import { neutralSideInput, type SideInput, type TickInputs } from "../src/input/controller";
 
 function readJson(rel: string): unknown {
@@ -41,6 +47,29 @@ export const panels: PanelColorMap = (() => {
   if (!panels) throw new Error("panels fixture invalid: " + JSON.stringify(errors));
   return panels;
 })();
+
+export const opponents: OpponentsTable = (() => {
+  const { opponents, errors } = validateOpponentsJson(readJson("../src/config/data/opponents.json"));
+  if (!opponents) throw new Error("opponents fixture invalid: " + JSON.stringify(errors));
+  return opponents;
+})();
+
+/** Resolve an archetype@tier into a ResolvedOpponent (base half-height from tuning). */
+export function opponent(archetype: string, tier: number): ResolvedOpponent {
+  return resolveOpponent({ tier, archetype }, opponents, {
+    paddleHalfHeight: tuning.paddle.paddle_half_height,
+  });
+}
+
+/** A MatchConfig with the given opponent's physical paddle on the RIGHT. */
+export function aiMatchConfig(
+  opp: ResolvedOpponent,
+  overrides: MatchConfigOverrides = {},
+): MatchConfig {
+  const cfg = testMatchConfig(overrides);
+  cfg.paddles = { right: opp.paddle };
+  return cfg;
+}
 
 export interface MatchConfigOverrides {
   wallsLeft?: string[][];

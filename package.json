@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "batch": "tsx tools/batchRunner.ts",
-    "view": "tsx tools/levelViewer.ts"
+    "view": "tsx tools/levelViewer.ts",
+    "ai:ladder": "tsx tools/aiLadder.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

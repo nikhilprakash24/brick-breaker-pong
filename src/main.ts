@@ -8,9 +8,11 @@ import { AppFsm } from "./app/appFsm";
 import { advanceAccumulator, createAccumulator, resetAccumulator } from "./app/loop";
 import { loadConfig } from "./config/load";
 import { resolveMatchConfig } from "./config/levels";
+import { resolveOpponent } from "./config/opponents";
 import type { ConfigRegistry, MatchConfig } from "./config/types";
 import { NullController, type InputController } from "./input/controller";
 import { DEFAULT_BINDINGS, HumanController, KeyState } from "./input/keyboard";
+import { AiController } from "./sim/ai/aiController";
 import { createMatch, stepMatch } from "./sim";
 import type { MatchState } from "./sim/state";
 import { Renderer, takeSnapshot, type InterpSnapshot } from "./render/renderer";
@@ -51,23 +53,37 @@ let renderFps = 0;
 
 let selectedLevelId = "dev-flat";
 
+let opponentLabel = "";
+
 function startMatch(): void {
   if (!registry) return;
   const level = registry.levels[selectedLevelId] ?? Object.values(registry.levels)[0];
   if (!level) return;
-  matchConfig = resolveMatchConfig(
-    level,
-    registry.tuning,
-    registry.materials,
-    registry.panels,
-    "versus",
-  );
-  // Seed chosen OUTSIDE the sim (§2.4); levels may pin one for reproducibility.
-  const seed = level.rules.fixed_seed ?? Date.now() & 0xffffffff;
-  curr = createMatch(matchConfig, seed);
+  // Story = human vs AI (R-1.2); a level with no opponent block is local versus.
+  const mode = level.opponent ? "story" : "versus";
+  matchConfig = resolveMatchConfig(level, registry.tuning, registry.materials, registry.panels, mode);
+
+  let ai: AiController | null = null;
+  if (level.opponent) {
+    const opp = resolveOpponent(level.opponent, registry.opponents, {
+      paddleHalfHeight: registry.tuning.paddle.paddle_half_height,
+    });
+    matchConfig.paddles = { right: opp.paddle }; // physical layout is sim-side
+    opponentLabel = `${level.opponent.archetype} T${level.opponent.tier}`;
+    // Seed chosen OUTSIDE the sim (§2.4); levels may pin one for reproducibility.
+    const seed = level.rules.fixed_seed ?? (Date.now() & 0xffffffff);
+    curr = createMatch(matchConfig, seed);
+    ai = new AiController(opp, "right", seed);
+  } else {
+    opponentLabel = "";
+    const seed = level.rules.fixed_seed ?? (Date.now() & 0xffffffff);
+    curr = createMatch(matchConfig, seed);
+  }
+
   prev = takeSnapshot(curr);
   leftCtrl = new HumanController(keys, DEFAULT_BINDINGS.left);
-  rightCtrl = new HumanController(keys, DEFAULT_BINDINGS.right);
+  rightCtrl = ai ?? new HumanController(keys, DEFAULT_BINDINGS.right);
+  renderer.setOpponentLabel(opponentLabel);
 }
 
 const fsm = new AppFsm([
@@ -104,6 +120,7 @@ window.addEventListener("keydown", (e) => {
       Digit4: "dev-angular",
       Digit5: "dev-narrowing",
       Digit6: "dev-zigzag",
+      Digit7: "dev-twins",
     };
     if (byDigit[e.code]) selectedLevelId = byDigit[e.code]!;
     fsm.dispatch("selectStory");

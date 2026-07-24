@@ -178,6 +178,7 @@ export interface ConfigRegistry {
   tuning: TuningTable;
   materials: Record<string, MaterialDef>;
   panels: PanelColorMap;
+  opponents: import("./opponents").OpponentsTable;
   /** LevelId → validated level (worlds.json manifest arrives in Phase 6). */
   levels: Record<string, import("./levels").LevelDef>;
 }
@@ -185,6 +186,15 @@ export interface ConfigRegistry {
 /** Per-side wall definition, resolved (layers[0] = frontmost, entries = material ids). */
 export interface ResolvedWallDef {
   layers: string[][];
+}
+
+/** Physical paddle layout for a side (sim-side; split zones §7.4.3). */
+export interface PaddleLayout {
+  count: 1 | 2;
+  halfHeight: number;
+  speed: number;
+  offset: number; // paddle-zone center shift (standing gap; GDD §8)
+  splitGap: number; // count 2 only; uncovered center gap
 }
 
 /**
@@ -199,6 +209,8 @@ export interface MatchConfig {
   arena: ResolvedArena;
   objects: ResolvedObject[];
   panels: PanelColorMap;
+  /** Physical paddle layout per side. Absent ⇒ base single paddle from tuning. */
+  paddles?: { left?: PaddleLayout; right?: PaddleLayout };
   rules: {
     lives: { left: number; right: number };
     rebuild_on_life_lost: "none" | "full" | "breach_fill";

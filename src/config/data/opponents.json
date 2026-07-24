@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "tiers": {
+    "T1": {
+      "perception": { "reaction_ms": 320, "aim_noise_u": 34, "replan_ms": 400 },
+      "paddle": { "speed": 260 },
+      "targeting": "spray",
+      "station": "center",
+      "placement": { "style": "never" },
+      "powerup_use": { "style": "reactive", "min_hold_ms": 2000 }
+    },
+    "T2": {
+      "perception": { "reaction_ms": 260, "aim_noise_u": 26, "replan_ms": 330 },
+      "paddle": { "speed": 300 },
+      "targeting": "focus",
+      "station": "center",
+      "placement": { "style": "defensive", "react_ms": 1400 },
+      "powerup_use": { "style": "reactive", "min_hold_ms": 1600 }
+    },
+    "T3": {
+      "perception": { "reaction_ms": 200, "aim_noise_u": 19, "replan_ms": 280 },
+      "paddle": { "speed": 340 },
+      "targeting": "breach",
+      "station": "center",
+      "placement": { "style": "defensive", "react_ms": 1000 },
+      "powerup_use": { "style": "reactive", "min_hold_ms": 1200 }
+    },
+    "T4": {
+      "perception": { "reaction_ms": 150, "aim_noise_u": 13, "replan_ms": 220 },
+      "paddle": { "speed": 380 },
+      "targeting": "breach",
+      "station": "center",
+      "placement": { "style": "defensive", "react_ms": 800 },
+      "powerup_use": { "style": "eager", "min_hold_ms": 800 }
+    },
+    "T5": {
+      "perception": { "reaction_ms": 110, "aim_noise_u": 8, "replan_ms": 170 },
+      "paddle": { "speed": 420 },
+      "targeting": "breach",
+      "station": "denial",
+      "placement": { "style": "fortify", "react_ms": 600 },
+      "powerup_use": { "style": "eager", "min_hold_ms": 400 }
+    }
+  },
+  "archetypes": {
+    "drone": {
+      "paddle": { "half_height": 56, "speed": 280, "count": 1, "offset": 0 },
+      "perception": { "reaction_ms_delta": 20 },
+      "targeting": "spray",
+      "placement": { "style": "never" }
+    },
+    "warden": {
+      "paddle": { "half_height": 48, "speed": 340, "count": 1, "offset": 0 },
+      "targeting": "focus",
+      "placement": { "style": "defensive" }
+    },
+    "striker": {
+      "paddle": { "half_height": 40, "speed": 400, "count": 1, "offset": 0 },
+      "perception": { "reaction_ms_delta": -20, "aim_noise_mult": 1.15 },
+      "targeting": "breach",
+      "placement": { "style": "never" },
+      "powerup_use": { "style": "eager", "min_hold_ms": 800 }
+    },
+    "phantom": {
+      "paddle": { "half_height": 44, "speed": 360, "count": 1, "offset": 80 },
+      "targeting": "focus",
+      "placement": { "style": "defensive" }
+    },
+    "mason": {
+      "paddle": { "half_height": 48, "speed": 320, "count": 1, "offset": 0 },
+      "perception": { "aim_noise_mult": 1.1 },
+      "targeting": "focus",
+      "placement": { "style": "fortify", "react_ms": 700 },
+      "powerup_use": { "style": "reactive", "min_hold_ms": 1200 }
+    },
+    "the_wall": {
+      "paddle": { "half_height": 84, "speed": 230, "count": 1, "offset": 0 },
+      "perception": { "reaction_ms_delta": 40, "aim_noise_mult": 1.2 },
+      "targeting": "focus",
+      "placement": { "style": "never" }
+    },
+    "trickster": {
+      "paddle": { "half_height": 40, "speed": 410, "count": 1, "offset": 90, "offset_flip": true },
+      "perception": { "aim_noise_mult": 0.9 },
+      "targeting": "breach",
+      "placement": { "style": "defensive" },
+      "powerup_use": { "style": "eager", "min_hold_ms": 400 }
+    },
+    "twins": {
+      "paddle": { "half_height": 34, "speed": 380, "count": 2, "offset": 0, "split_gap": 120 },
+      "perception": { "reaction_ms": 140, "aim_noise_u": 14 },
+      "targeting": "breach",
+      "placement": { "style": "defensive" },
+      "powerup_use": { "style": "eager", "min_hold_ms": 400 }
+    },
+    "architect": {
+      "paddle": { "half_height": 48, "speed": 400, "count": 1, "offset": 0 },
+      "perception": { "reaction_ms": 120, "aim_noise_u": 9 },
+      "targeting": "breach",
+      "placement": { "style": "fortify", "react_ms": 500 },
+      "powerup_use": { "style": "eager", "min_hold_ms": 300 }
+    }
+  }
+}

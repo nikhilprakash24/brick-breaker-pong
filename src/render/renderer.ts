@@ -50,6 +50,11 @@ export class Renderer {
   private ctx!: CanvasRenderingContext2D;
   private scale = 1;
   private eventsSeen = 0;
+  private opponentLabel = "";
+
+  setOpponentLabel(label: string): void {
+    this.opponentLabel = label;
+  }
 
   init(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -121,10 +126,10 @@ export class Renderer {
       c.fillText("press any key", LOGICAL_W / 2, 360);
     } else if (appState === "MAIN_MENU") {
       c.font = "22px ui-monospace, monospace";
-      c.fillText("1 Flat   2 Asymmetric   3 Slope(field)", LOGICAL_W / 2, 300);
-      c.fillText("4 Angular   5 Narrowing   6 Zig-zag", LOGICAL_W / 2, 332);
+      c.fillText("1 Flat(vs AI)   2 Asymmetric   3 Slope(field)", LOGICAL_W / 2, 292);
+      c.fillText("4 Angular   5 Narrowing   6 Zig-zag   7 Twins(vs AI)", LOGICAL_W / 2, 324);
       c.font = "18px ui-monospace, monospace";
-      c.fillText("pick a number to start — 2P: left W/S, right ↑/↓", LOGICAL_W / 2, 380);
+      c.fillText("pick a number — vs AI: left W/S · 2P: right ↑/↓", LOGICAL_W / 2, 372);
     }
   }
 
@@ -332,6 +337,12 @@ export class Renderer {
     c.textAlign = "center";
     c.fillStyle = "#8fa3d9";
     c.fillText(`${state.rally.hitCount}`, LOGICAL_W / 2, 34);
+    if (this.opponentLabel) {
+      c.font = "14px ui-monospace, monospace";
+      c.fillStyle = PLAYER_ACCENT.right;
+      c.textAlign = "right";
+      c.fillText(this.opponentLabel, LOGICAL_W - 12, 54);
+    }
     if (state.phase.kind === "matchOver") {
       c.font = "44px ui-monospace, monospace";
       c.fillStyle = PLAYER_ACCENT[state.phase.winner];

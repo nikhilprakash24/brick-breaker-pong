@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
-  "id": "dev-flat",
-  "display_name": "Dev Court",
+  "id": "dev-twins",
+  "display_name": "The Twins",
   "rules": {
-    "lives": { "left": 3, "right": 3 },
+    "lives": { "left": 3, "right": 5 },
     "rebuild_on_life_lost": "none",
     "rebuild_material": "hay",
     "life_loss_per_exchange": 1,
@@ -14,9 +14,9 @@
   "walls": {
     "lane_count": 12,
     "left": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] },
-    "right": { "layers": ["hay*12", "hay*3 brick*6 hay*3"] }
+    "right": { "layers": ["hay*4 metal*4 hay*4"] }
   },
   "arena": { "profile": "flat" },
   "objects": [],
-  "opponent": { "tier": 3, "archetype": "warden" }
+  "opponent": { "tier": 4, "archetype": "twins" }
 }

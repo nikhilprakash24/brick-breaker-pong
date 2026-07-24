@@ -41,8 +41,9 @@ npm run typecheck  # tsc --noEmit
 | 1 — Core physics prototype | ✅ DoD verified 2026-07-10 |
 | 2 — Walls, materials & the siege game | ✅ DoD verified 2026-07-11 |
 | 3 — Arenas & wall objects | ✅ DoD verified 2026-07-11 |
-| 4 — Opponent AI | next |
-| 5–10 | pending |
+| 4 — Opponent AI | ✅ DoD verified 2026-07-13 (one band ⚠ documented) |
+| 5 — Powerups | next |
+| 6–10 | pending |
 
 Phase 0 DoD evidence: dev serves a 1280×720 letterboxed canvas; live readout
 shows sim 120 Hz vs render 60 fps (plus headless cadence tests in
@@ -65,6 +66,15 @@ Phase 1 A/B answers still open for the creator (playtest falsifiers built
 in): `backface_mode` (default "reflect"), `rebuild_on_life_lost` (all three
 modes implemented behind the config flag, default "none"), serve-direction
 and speed-curve feel — all tunable in `src/config/data/tuning.json`.
+
+Phase 4 DoD evidence: see **[docs/phase-4-opponent-ai.md](docs/phase-4-opponent-ai.md)**
+(the per-phase output document — implementation map, DoD scorecard, ladder
+results, deviations, and meta commentary). Headlines: AI purity proven over
+10k fuzzed states + recorded-input replay equality; `focus` ttfb 0.71× spray
+(gate ≤ 0.75×); split-paddle twins works; T5v4 monotonicity in band at 60%,
+lower pairs above the 85% ceiling (documented — canonical tier values, re-
+baselined after Phase 5 per §2.9.2). Story mode live: menu `1` = warden T3,
+`7` = twins T4. Gates: `npm run ai:ladder`.
 
 Phase 3 DoD evidence: all five arena shapes bake and play — flat, slope
 (both `reflection_only` and `field` modes, `slope_accel` 400), angular,

@@ -33,6 +33,7 @@ import {
   validateArenaGeometry,
   type ArenaProfileInput,
 } from "../sim/geometry";
+import type { OpponentSelection, OpponentsTable } from "./opponents";
 
 export interface LevelDef {
   schema_version: number;
@@ -54,6 +55,7 @@ export interface LevelDef {
   };
   arena: ResolvedArena; // expanded + validated
   objects: ResolvedObject[];
+  opponent?: OpponentSelection; // present ⇒ story level (AI on the right)
 }
 
 const nonEmptyString: FieldSpec = (v, ctx) => {
@@ -186,6 +188,27 @@ const LEVEL_RULES_SCHEMA: ObjectSchema = {
 
 const passThrough: FieldSpec = (v) => v;
 
+/** Validate a level's optional opponent block (§7.3), cross-ref against the
+ *  opponents table when available. */
+function validateOpponentBlock(
+  file: string,
+  raw: unknown,
+  opponents: OpponentsTable | undefined,
+  errors: ValidationError[],
+): void {
+  if (typeof raw !== "object" || raw === null) {
+    errors.push({ file, path: "opponent", message: "expected an opponent object" });
+    return;
+  }
+  const o = raw as Record<string, unknown>;
+  int(1, 5)(o.tier, { file, path: "opponent.tier", errors });
+  if (typeof o.archetype !== "string") {
+    errors.push({ file, path: "opponent.archetype", message: "expected an archetype id string" });
+  } else if (opponents && !(o.archetype in opponents.archetypes)) {
+    errors.push({ file, path: "opponent.archetype", message: `unknown archetype ${JSON.stringify(o.archetype)}` });
+  }
+}
+
 const OBJECT_MIN_SEPARATION = 8; // u (§2.4.4)
 const MAX_OBJECTS = 6;
 const MAX_TRIGGERABLE = 4;
@@ -314,14 +337,17 @@ function validateOneObject(
   return resolved;
 }
 
-/** Validate one level file (pure; §7.9). Panels needed for panel color refs. */
+/** Validate one level file (pure; §7.9). Panels needed for panel color refs;
+ *  opponents (optional) for the story-level opponent cross-ref. */
 export function validateLevelJson(
   fileName: string,
   raw: unknown,
   materials: Record<string, MaterialDef>,
   panels: PanelColorMap,
+  opponents?: OpponentsTable,
 ): { level?: LevelDef; errors: ValidationError[] } {
   const errors: ValidationError[] = [];
+  const hasOpponent = typeof raw === "object" && raw !== null && "opponent" in raw;
   const cleaned = validateObject(
     fileName,
     "",
@@ -338,6 +364,7 @@ export function validateLevelJson(
       },
       arena: passThrough, // validated + expanded below
       objects: passThrough,
+      ...(hasOpponent ? { opponent: passThrough } : {}),
     },
     errors,
   );
@@ -347,7 +374,10 @@ export function validateLevelJson(
     walls: { lane_count: number; left: { layers: unknown }; right: { layers: unknown } };
     arena: unknown;
     objects: unknown;
+    opponent?: unknown;
   };
+
+  if (hasOpponent) validateOpponentBlock(fileName, level.opponent, opponents, errors);
   const laneCount = level.walls.lane_count;
 
   const arenaResult = validateArenaAndObjects(fileName, level.arena, level.objects, panels, errors);
